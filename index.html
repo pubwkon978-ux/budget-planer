@@ -114,6 +114,8 @@ const DEFAULTS=[["Bills",["Electricity","Water","Internet","Phone"]],["Loans",["
 let SE=false,OPEN=false,U=null,Y=new Date().getFullYear(),M=null,L=[];
 const fmt=n=>(+n||0).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
 const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const pad=n=>String(n).padStart(2,'0');
+const dLabel=d=>{if(!d)return'';const [,m,day]=d.split('-');return +day+' '+MN[m-1].slice(0,3)};
 function toast(t){const e=$('#toast');e.textContent=t;e.classList.add('on');setTimeout(()=>e.classList.remove('on'),1800)}
 const ref=(...p)=>doc(fs,"users",U.uid,...p),col=n=>collection(fs,"users",U.uid,n);
 
@@ -149,7 +151,7 @@ const saveLists=()=>setDoc(ref("meta","lists"),{groups:L});
 async function monthData(y,m){
   const s=await getDoc(ref("months",y+"_"+m));
   const q=await getDocs(query(col("entries"),where("y","==",y),where("m","==",m)));
-  const e=q.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>(a.ts||0)-(b.ts||0));
+  const e=q.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>(a.date||'').localeCompare(b.date||'')||(a.ts||0)-(b.ts||0));
   return{salary:s.exists()?s.data().salary:0,entries:e};
 }
 
@@ -170,11 +172,13 @@ async function showMonth(m){
   M=m;const d=await monthData(Y,m);
   const spent=d.entries.reduce((a,e)=>a+e.amount,0),left=d.salary-spent,by={};
   d.entries.forEach(e=>(by[e.grp]=by[e.grp]||[]).push(e));
+  const now=new Date(),dMin=`${Y}-${pad(m)}-01`,dMax=`${Y}-${pad(m)}-${pad(new Date(Y,m,0).getDate())}`,
+    dDef=(now.getFullYear()==Y&&now.getMonth()+1==m)?`${Y}-${pad(m)}-${pad(now.getDate())}`:dMin;
   const salHTML=(d.salary&&!SE)
    ?`<div class="glass card salcard"><button class="ib edit" data-a="sedit" aria-label="Edit salary">✎</button><div class="sl">${MN[m-1]} salary</div><div class="sv">Rs. ${fmt(d.salary)}</div></div>`
    :`<div class="glass card"><h2>Salary</h2><label>Salary for ${MN[m-1]} (Rs.)<input id="sal" type="number" inputmode="decimal" min="0" step="0.01" value="${d.salary||''}" placeholder="0.00"></label><button class="btn" data-a="sal">Save salary</button>${d.salary?'<button class="btn alt" data-a="scancel" style="margin-top:8px">Cancel</button>':''}</div>`;
   const rows=Object.keys(by).map(g=>`<div class="gh"><span>${esc(g)}</span><span>${fmt(by[g].reduce((a,e)=>a+e.amount,0))}</span></div>`+
-   by[g].map(e=>`<div class="er"><div>${esc(e.item)}${e.note?`<small>${esc(e.note)}</small>`:''}</div><button class="a" data-a="edit" data-id="${e.id}" data-amt="${e.amount}">${fmt(e.amount)}</button><button class="x" data-a="del" data-id="${e.id}" aria-label="Delete">✕</button></div>`).join('')).join('');
+   by[g].map(e=>`<div class="er"><div>${esc(e.item)}${(e.date||e.note)?`<small>${dLabel(e.date)}${e.date&&e.note?' · ':''}${esc(e.note||'')}</small>`:''}</div><button class="a" data-a="edit" data-id="${e.id}" data-amt="${e.amount}">${fmt(e.amount)}</button><button class="x" data-a="del" data-id="${e.id}" aria-label="Delete">✕</button></div>`).join('')).join('');
   $('#view').innerHTML=`<div class="bar"><button class="ib" data-a="m-" aria-label="Previous month">‹</button><h1>${MN[m-1]} ${Y}</h1><button class="ib" data-a="m+" aria-label="Next month">›</button></div>
   <button class="btn alt" data-a="year" style="margin-bottom:14px">All months</button>
   ${salHTML}
@@ -184,6 +188,7 @@ async function showMonth(m){
    <label>Item<select id="ei"></select></label>
    <label id="ec" hidden>Your own item<input id="eic" placeholder="Type a name"></label>
    <label>Amount (Rs.)<input id="ea" type="number" inputmode="decimal" min="0" step="0.01" placeholder="0.00"></label>
+   <label>Date<input id="ed" type="date" value="${dDef}" min="${dMin}" max="${dMax}"></label>
    <label>Note<input id="en" placeholder="Optional"></label>
    <button class="btn pink" data-a="add">Add expense</button></div></div></div></div>
   <div class="glass card"><h2>${MN[m-1]} expenses</h2>${rows||'<div class="empty">No expenses yet.</div>'}</div>`;
@@ -225,12 +230,13 @@ document.addEventListener('click',async e=>{
   if(a=='scancel'){SE=false;return showMonth(M)}
   if(a=='add'){
     const grp=$('#eg').value;let item=$('#ei').value;if(item=='__c')item=$('#eic').value.trim();
-    const amount=parseFloat($('#ea').value);
+    const amount=parseFloat($('#ea').value),date=$('#ed').value;
     if(!grp)return toast('Add a category in the menu first');
     if(!item)return toast('Choose or type an item');
     if(!(amount>=0))return toast('Enter an amount');
-    await addDoc(col("entries"),{y:Y,m:M,grp,item,amount,note:$('#en').value,ts:Date.now()});
-    toast('Expense added');await showMonth(M);$('#eg').value=grp;fillItems();return}
+    if(!date)return toast('Choose a date');
+    await addDoc(col("entries"),{y:Y,m:M,grp,item,amount,date,note:$('#en').value,ts:Date.now()});
+    toast('Expense added');await showMonth(M);$('#eg').value=grp;fillItems();$('#ed').value=date;return}
   if(a=='edit'){const v=prompt('New amount',D.amt);if(v===null)return;const n=parseFloat(v);if(!(n>=0))return toast('Enter a valid amount');await updateDoc(ref("entries",D.id),{amount:n});return showMonth(M)}
   if(a=='del'){if(!confirm('Delete this expense?'))return;await deleteDoc(ref("entries",D.id));return showMonth(M)}
   /* list management */
