@@ -49,6 +49,14 @@ option{background:#2a1458;color:#fff}
 .btn{width:100%;padding:13px;border:0;border-radius:14px;font-weight:700;color:#1b1038;background:linear-gradient(135deg,#3ff2a5,#5ab0ff)}
 .btn.alt{background:var(--glass);color:#fff;border:1px solid var(--line)}
 .btn.pink{background:linear-gradient(135deg,#ff6bb5,#ffb86b)}
+.accb{width:100%;display:flex;justify-content:space-between;align-items:center;padding:15px 18px;font-weight:700;font-size:16px;color:#fff;margin-bottom:0;background:linear-gradient(135deg,rgba(255,107,181,.45),rgba(255,184,107,.4))}
+.accb i{font-style:normal;transition:transform .35s}
+.acc.open .accb i{transform:rotate(180deg)}
+.acc{margin-bottom:14px}
+.accbody{display:grid;grid-template-rows:0fr;opacity:0;transform:translateY(-12px);transition:grid-template-rows .4s cubic-bezier(.2,.8,.2,1),opacity .35s,transform .4s cubic-bezier(.2,.8,.2,1)}
+.acc.open .accbody{grid-template-rows:1fr;opacity:1;transform:none}
+.accin{overflow:hidden;min-height:0}
+.accin .card{margin:12px 0 0}
 .sum{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:14px}
 .sum div{padding:11px 8px;text-align:center}
 .sum span{display:block;font-size:11px;color:var(--mute)}.sum b{font-size:15px}
@@ -96,7 +104,7 @@ const $=s=>document.querySelector(s);
 const MN=["January","February","March","April","May","June","July","August","September","October","November","December"];
 const COL=["#ff6bb5","#ff8a5c","#ffd166","#a3e635","#3ff2a5","#22d3ee","#5ab0ff","#8b9cff","#c084fc","#f472b6","#fb923c","#34d399"];
 const DEFAULTS=[["Bills",["Electricity","Water","Internet","Phone"]],["Loans",["Bank loan","Leasing","Credit card"]],["Food",["Groceries","Eating out"]],["Transport",["Fuel","Bus / Train"]],["Savings",["Savings","Fixed deposit"]],["Other",["Medical","Gifts"]]].map(([name,items])=>({name,items}));
-let U=null,Y=new Date().getFullYear(),M=null,L=[];
+let OPEN=false,U=null,Y=new Date().getFullYear(),M=null,L=[];
 const fmt=n=>(+n||0).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
 const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 function toast(t){const e=$('#toast');e.textContent=t;e.classList.add('on');setTimeout(()=>e.classList.remove('on'),1800)}
@@ -161,13 +169,13 @@ async function showMonth(m){
   <button class="btn alt" data-a="year" style="margin-bottom:14px">All months</button>
   <div class="glass card"><h2>Salary</h2><label>Salary for ${MN[m-1]} (Rs.)<input id="sal" type="number" inputmode="decimal" min="0" step="0.01" value="${d.salary||''}" placeholder="0.00"></label><button class="btn" data-a="sal">Save salary</button></div>
   <div class="sum"><div class="glass"><span>Salary</span><b>${fmt(d.salary)}</b></div><div class="glass"><span>Spent</span><b>${fmt(spent)}</b></div><div class="glass"><span>Left</span><b class="${left<0?'neg':'pos'}">${fmt(left)}</b></div></div>
-  <div class="glass card"><h2>Add expense</h2>
+  <div class="acc${OPEN?' open':''}"><button class="glass accb" data-a="toggle" aria-expanded="${OPEN}"><span>＋ Add expense</span><i>▾</i></button><div class="accbody"><div class="accin"><div class="glass card">
    <label>Category<select id="eg">${L.map(g=>`<option>${esc(g.name)}</option>`).join('')}</select></label>
    <label>Item<select id="ei"></select></label>
    <label id="ec" hidden>Your own item<input id="eic" placeholder="Type a name"></label>
    <label>Amount (Rs.)<input id="ea" type="number" inputmode="decimal" min="0" step="0.01" placeholder="0.00"></label>
    <label>Note<input id="en" placeholder="Optional"></label>
-   <button class="btn pink" data-a="add">Add expense</button></div>
+   <button class="btn pink" data-a="add">Add expense</button></div></div></div></div>
   <div class="glass card"><h2>${MN[m-1]} expenses</h2>${rows||'<div class="empty">No expenses yet.</div>'}</div>`;
   fillItems();
 }
@@ -199,8 +207,9 @@ document.addEventListener('click',async e=>{
   if(a=='logout'){tog(false);await signOut(auth);return}
   if(a=='y-'){Y--;return showYear()} if(a=='y+'){Y++;return showYear()}
   if(a=='year')return showYear();
-  if(a=='month')return showMonth(+D.m);
-  if(a=='m-'||a=='m+'){let m=M+(a=='m+'?1:-1);if(m<1){m=12;Y--}if(m>12){m=1;Y++}return showMonth(m)}
+  if(a=='toggle'){OPEN=!OPEN;b.closest('.acc').classList.toggle('open',OPEN);b.setAttribute('aria-expanded',OPEN);return}
+  if(a=='month'){OPEN=false;return showMonth(+D.m)}
+  if(a=='m-'||a=='m+'){let m=M+(a=='m+'?1:-1);if(m<1){m=12;Y--}if(m>12){m=1;Y++}OPEN=false;return showMonth(m)}
   if(a=='sal'){await setDoc(ref("months",Y+"_"+M),{y:Y,m:M,salary:parseFloat($('#sal').value)||0});toast('Salary saved');return showMonth(M)}
   if(a=='add'){
     const grp=$('#eg').value;let item=$('#ei').value;if(item=='__c')item=$('#eic').value.trim();
