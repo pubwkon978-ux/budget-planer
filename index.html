@@ -64,7 +64,7 @@ option{background:#2a1458;color:#fff}
 .salcard .sv{font-size:32px;font-weight:800;letter-spacing:.3px;text-shadow:0 2px 14px rgba(0,0,0,.25);margin-top:2px}
 .salcard .edit{position:absolute;top:10px;right:10px;width:36px;height:36px;font-size:17px;z-index:2}
 @media(prefers-reduced-motion:reduce){.salcard::after{animation:none;display:none}}
-.sum{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:14px}
+.sum{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin-bottom:14px}
 .sum div{padding:11px 8px;text-align:center}
 .sum span{display:block;font-size:11px;color:var(--mute)}.sum b{font-size:15px}
 .neg{color:var(--red)}.pos{color:var(--green)}
@@ -178,7 +178,7 @@ async function showMonth(m){
   $('#view').innerHTML=`<div class="bar"><button class="ib" data-a="m-" aria-label="Previous month">‹</button><h1>${MN[m-1]} ${Y}</h1><button class="ib" data-a="m+" aria-label="Next month">›</button></div>
   <button class="btn alt" data-a="year" style="margin-bottom:14px">All months</button>
   ${salHTML}
-  <div class="sum"><div class="glass"><span>Salary</span><b>${fmt(d.salary)}</b></div><div class="glass"><span>Spent</span><b>${fmt(spent)}</b></div><div class="glass"><span>Left</span><b class="${left<0?'neg':'pos'}">${fmt(left)}</b></div></div>
+  <div class="sum"><div class="glass"><span>Spent</span><b>${fmt(spent)}</b></div><div class="glass"><span>Left</span><b class="${left<0?'neg':'pos'}">${fmt(left)}</b></div></div>
   <div class="acc${OPEN?' open':''}"><button class="glass accb" data-a="toggle" aria-expanded="${OPEN}"><span>＋ Add expense</span><i>▾</i></button><div class="accbody"><div class="accin"><div class="glass card">
    <label>Category<select id="eg">${L.map(g=>`<option>${esc(g.name)}</option>`).join('')}</select></label>
    <label>Item<select id="ei"></select></label>
