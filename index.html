@@ -57,6 +57,13 @@ option{background:#2a1458;color:#fff}
 .acc.open .accbody{grid-template-rows:1fr;opacity:1;transform:none}
 .accin{overflow:hidden;min-height:0}
 .accin .card{margin:12px 0 0}
+.salcard{position:relative;overflow:hidden;padding:20px 18px;background:linear-gradient(135deg,rgba(63,242,165,.38),rgba(90,176,255,.32),rgba(192,132,252,.3))}
+.salcard::after{content:"";position:absolute;top:0;left:-70%;width:45%;height:100%;background:linear-gradient(100deg,transparent,rgba(255,255,255,.6),transparent);transform:skewX(-20deg);animation:shine 3.4s ease-in-out infinite;pointer-events:none}
+@keyframes shine{0%{left:-70%}55%,100%{left:140%}}
+.salcard .sl{font-size:13px;color:rgba(255,255,255,.8)}
+.salcard .sv{font-size:32px;font-weight:800;letter-spacing:.3px;text-shadow:0 2px 14px rgba(0,0,0,.25);margin-top:2px}
+.salcard .edit{position:absolute;top:10px;right:10px;width:36px;height:36px;font-size:17px;z-index:2}
+@media(prefers-reduced-motion:reduce){.salcard::after{animation:none;display:none}}
 .sum{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:14px}
 .sum div{padding:11px 8px;text-align:center}
 .sum span{display:block;font-size:11px;color:var(--mute)}.sum b{font-size:15px}
@@ -104,7 +111,7 @@ const $=s=>document.querySelector(s);
 const MN=["January","February","March","April","May","June","July","August","September","October","November","December"];
 const COL=["#ff6bb5","#ff8a5c","#ffd166","#a3e635","#3ff2a5","#22d3ee","#5ab0ff","#8b9cff","#c084fc","#f472b6","#fb923c","#34d399"];
 const DEFAULTS=[["Bills",["Electricity","Water","Internet","Phone"]],["Loans",["Bank loan","Leasing","Credit card"]],["Food",["Groceries","Eating out"]],["Transport",["Fuel","Bus / Train"]],["Savings",["Savings","Fixed deposit"]],["Other",["Medical","Gifts"]]].map(([name,items])=>({name,items}));
-let OPEN=false,U=null,Y=new Date().getFullYear(),M=null,L=[];
+let SE=false,OPEN=false,U=null,Y=new Date().getFullYear(),M=null,L=[];
 const fmt=n=>(+n||0).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
 const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 function toast(t){const e=$('#toast');e.textContent=t;e.classList.add('on');setTimeout(()=>e.classList.remove('on'),1800)}
@@ -163,11 +170,14 @@ async function showMonth(m){
   M=m;const d=await monthData(Y,m);
   const spent=d.entries.reduce((a,e)=>a+e.amount,0),left=d.salary-spent,by={};
   d.entries.forEach(e=>(by[e.grp]=by[e.grp]||[]).push(e));
+  const salHTML=(d.salary&&!SE)
+   ?`<div class="glass card salcard"><button class="ib edit" data-a="sedit" aria-label="Edit salary">✎</button><div class="sl">${MN[m-1]} salary</div><div class="sv">Rs. ${fmt(d.salary)}</div></div>`
+   :`<div class="glass card"><h2>Salary</h2><label>Salary for ${MN[m-1]} (Rs.)<input id="sal" type="number" inputmode="decimal" min="0" step="0.01" value="${d.salary||''}" placeholder="0.00"></label><button class="btn" data-a="sal">Save salary</button>${d.salary?'<button class="btn alt" data-a="scancel" style="margin-top:8px">Cancel</button>':''}</div>`;
   const rows=Object.keys(by).map(g=>`<div class="gh"><span>${esc(g)}</span><span>${fmt(by[g].reduce((a,e)=>a+e.amount,0))}</span></div>`+
    by[g].map(e=>`<div class="er"><div>${esc(e.item)}${e.note?`<small>${esc(e.note)}</small>`:''}</div><button class="a" data-a="edit" data-id="${e.id}" data-amt="${e.amount}">${fmt(e.amount)}</button><button class="x" data-a="del" data-id="${e.id}" aria-label="Delete">✕</button></div>`).join('')).join('');
   $('#view').innerHTML=`<div class="bar"><button class="ib" data-a="m-" aria-label="Previous month">‹</button><h1>${MN[m-1]} ${Y}</h1><button class="ib" data-a="m+" aria-label="Next month">›</button></div>
   <button class="btn alt" data-a="year" style="margin-bottom:14px">All months</button>
-  <div class="glass card"><h2>Salary</h2><label>Salary for ${MN[m-1]} (Rs.)<input id="sal" type="number" inputmode="decimal" min="0" step="0.01" value="${d.salary||''}" placeholder="0.00"></label><button class="btn" data-a="sal">Save salary</button></div>
+  ${salHTML}
   <div class="sum"><div class="glass"><span>Salary</span><b>${fmt(d.salary)}</b></div><div class="glass"><span>Spent</span><b>${fmt(spent)}</b></div><div class="glass"><span>Left</span><b class="${left<0?'neg':'pos'}">${fmt(left)}</b></div></div>
   <div class="acc${OPEN?' open':''}"><button class="glass accb" data-a="toggle" aria-expanded="${OPEN}"><span>＋ Add expense</span><i>▾</i></button><div class="accbody"><div class="accin"><div class="glass card">
    <label>Category<select id="eg">${L.map(g=>`<option>${esc(g.name)}</option>`).join('')}</select></label>
@@ -177,7 +187,7 @@ async function showMonth(m){
    <label>Note<input id="en" placeholder="Optional"></label>
    <button class="btn pink" data-a="add">Add expense</button></div></div></div></div>
   <div class="glass card"><h2>${MN[m-1]} expenses</h2>${rows||'<div class="empty">No expenses yet.</div>'}</div>`;
-  fillItems();
+  fillItems();if(SE&&$('#sal'))$('#sal').focus();
 }
 function fillItems(){
   const g=$('#eg');if(!g)return;const grp=L.find(x=>x.name==g.value);
@@ -208,9 +218,11 @@ document.addEventListener('click',async e=>{
   if(a=='y-'){Y--;return showYear()} if(a=='y+'){Y++;return showYear()}
   if(a=='year')return showYear();
   if(a=='toggle'){OPEN=!OPEN;b.closest('.acc').classList.toggle('open',OPEN);b.setAttribute('aria-expanded',OPEN);return}
-  if(a=='month'){OPEN=false;return showMonth(+D.m)}
-  if(a=='m-'||a=='m+'){let m=M+(a=='m+'?1:-1);if(m<1){m=12;Y--}if(m>12){m=1;Y++}OPEN=false;return showMonth(m)}
-  if(a=='sal'){await setDoc(ref("months",Y+"_"+M),{y:Y,m:M,salary:parseFloat($('#sal').value)||0});toast('Salary saved');return showMonth(M)}
+  if(a=='month'){SE=false;OPEN=false;return showMonth(+D.m)}
+  if(a=='m-'||a=='m+'){let m=M+(a=='m+'?1:-1);if(m<1){m=12;Y--}if(m>12){m=1;Y++}SE=false;OPEN=false;return showMonth(m)}
+  if(a=='sal'){await setDoc(ref("months",Y+"_"+M),{y:Y,m:M,salary:parseFloat($('#sal').value)||0});SE=false;toast('Salary saved');return showMonth(M)}
+  if(a=='sedit'){SE=true;return showMonth(M)}
+  if(a=='scancel'){SE=false;return showMonth(M)}
   if(a=='add'){
     const grp=$('#eg').value;let item=$('#ei').value;if(item=='__c')item=$('#eic').value.trim();
     const amount=parseFloat($('#ea').value);
