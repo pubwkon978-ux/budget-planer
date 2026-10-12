@@ -237,7 +237,7 @@ async function showMonth(m){
    <label>Date<input id="ed" type="date" value="${dDef}"></label>
    <label>Note<input id="en" placeholder="Optional"></label>
    <button class="btn pink" data-a="add">Add expense</button></div></div></div></div>
-  <div class="glass card"><h2>${MN[m-1]} expenses</h2>${rows||'<div class="empty">No expenses yet.</div>'}</div>`;
+  <div class="glass card"><h2>My expenses</h2>${rows||'<div class="empty">No expenses yet.</div>'}</div>`;
   fillItems();if(SE&&$('#sal'))$('#sal').focus();
 }
 function fillItems(){
