@@ -121,10 +121,10 @@ input[type=color].cc::-webkit-color-swatch-wrapper{padding:0}
 input[type=color].cc::-webkit-color-swatch{border:0;border-radius:50%}
 input[type=color].cc::-moz-color-swatch{border:0;border-radius:50%}
 .top .nm{display:flex;align-items:center;gap:10px}
-.dh{display:flex;align-items:center;gap:12px}
+.dh{display:flex;align-items:center;justify-content:space-between;gap:12px}
 .dh h2{margin:0;font-size:19px}
-.back{width:42px;height:42px;font-size:22px;backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);box-shadow:0 4px 14px rgba(0,0,0,.2);transition:transform .15s}
-.back:active{transform:translateX(-3px) scale(.95)}
+.back{width:42px;height:42px;padding:0;backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);box-shadow:0 4px 14px rgba(0,0,0,.2);transition:transform .15s}
+.back:active{transform:scale(.92)}
 .th{display:flex;gap:8px;margin:12px 0 4px}
 .th button{flex:1;padding:10px 4px;border-radius:14px;border:2px solid transparent;background:var(--glass);font-size:12px;font-weight:600;display:flex;flex-direction:column;align-items:center;gap:6px}
 .th button.on{border-color:var(--ink)}
@@ -260,7 +260,7 @@ document.addEventListener('change',async e=>{if(e.target.classList.contains('cc'
   if(e.target.id=='eg')fillItems();if(e.target.id=='ei')$('#ec').hidden=e.target.value!='__c'});
 
 function drawer(){
-  $('#drawer').innerHTML=`<div class="dh"><button class="ib back" data-a="back" aria-label="Close menu">←</button><h2>Manage lists</h2></div><div class="user">${esc(U?.email||'')}</div>
+  $('#drawer').innerHTML=`<div class="dh"><h2>Manage lists</h2><button class="ib back" data-a="back" aria-label="Close menu"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M15.5 5l-7 7 7 7"/></svg></button></div><div class="user">${esc(U?.email||'')}</div>
   <button class="btn pink" data-a="logout">Log out</button>
   <div class="th">${THEMES.map(t=>`<button data-a="theme" data-t="${t[0]}" class="${document.documentElement.dataset.theme==t[0]?'on':''}"><i style="background:${t[2]}"></i>${t[1]}</button>`).join('')}</div>
   <div style="color:var(--mute);font-size:13px;margin-top:12px">These feed the dropdowns when you add an expense.</div>`+
