@@ -82,6 +82,18 @@ option{background:var(--optbg);color:var(--ink)}
 .salcard .sv{font-size:32px;font-weight:800;letter-spacing:.3px;text-shadow:0 2px 14px rgba(0,0,0,.25);margin-top:2px}
 .salcard .edit{position:absolute;top:10px;right:10px;width:36px;height:36px;font-size:17px;z-index:2}
 @media(prefers-reduced-motion:reduce){.salcard::after{animation:none;display:none}}
+.donut{position:relative;width:190px;height:190px;margin:4px auto 14px}
+.donut svg{width:100%;height:100%;animation:pop .8s cubic-bezier(.2,.8,.2,1)}
+@keyframes pop{from{opacity:0;transform:scale(.8) rotate(-50deg)}to{opacity:1;transform:none}}
+.donut .c{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center}
+.donut .c small{color:var(--mute);font-size:12px}.donut .c b{font-size:19px}
+.lg{display:flex;align-items:center;gap:10px;padding:7px 0}
+.lg>i{width:12px;height:12px;border-radius:4px;background:var(--c);flex:none}
+.lg .t{flex:1;min-width:0}.lg .t div{display:flex;justify-content:space-between;gap:8px}
+.lg .t span{color:var(--mute);font-size:12px}
+.lb{height:5px;border-radius:4px;background:var(--pbbg);margin-top:5px;overflow:hidden}
+.lb u{display:block;height:100%;width:var(--w);background:var(--c);border-radius:4px}
+@media(prefers-reduced-motion:reduce){.donut svg{animation:none}}
 .sum{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin-bottom:14px}
 .sum div{padding:11px 8px;text-align:center}
 .sum span{display:block;font-size:11px;color:var(--mute)}.sum b{font-size:15px}
@@ -199,6 +211,14 @@ async function showMonth(m){
   d.entries.forEach(e=>(by[e.grp]=by[e.grp]||[]).push(e));
   const now=new Date(),dMin=`${Y}-${pad(m)}-01`,
     dDef=(now.getFullYear()==Y&&now.getMonth()+1==m)?`${Y}-${pad(m)}-${pad(now.getDate())}`:dMin;
+  const CC=['#ff6bb5','#ffd166','#3ff2a5','#5ab0ff','#c084fc','#fb923c','#22d3ee','#a3e635'];
+  const cats=Object.keys(by).map(g=>({g,t:by[g].reduce((a,e)=>a+e.amount,0)})).filter(c=>c.t>0).sort((a,b)=>b.t-a.t);
+  let cum=0;
+  const chartHTML=spent>0?`<div class="glass card"><h2>Spending by category</h2>
+   <div class="donut"><svg viewBox="0 0 42 42"><circle cx="21" cy="21" r="15.9155" fill="none" stroke="var(--pbbg)" stroke-width="5.5"/>`+
+   cats.map((c,i)=>{const pc=c.t/spent*100,gap=cats.length>1?Math.min(.8,pc/3):0,o=`<circle cx="21" cy="21" r="15.9155" fill="none" stroke="${CC[i%CC.length]}" stroke-width="5.5" stroke-dasharray="${(pc-gap).toFixed(2)} ${(100-pc+gap).toFixed(2)}" stroke-dashoffset="${(25-cum).toFixed(2)}"/>`;cum+=pc;return o}).join('')+
+   `</svg><div class="c"><small>Total spent</small><b>${fmt(spent)}</b></div></div>`+
+   cats.map((c,i)=>{const pc=c.t/spent*100;return `<div class="lg" style="--c:${CC[i%CC.length]};--w:${pc.toFixed(1)}%"><i></i><div class="t"><div><b>${esc(c.g)}</b><b>${fmt(c.t)}</b></div><div><span>${pc.toFixed(1)}%</span><span>${by[c.g].length} item${by[c.g].length>1?'s':''}</span></div><div class="lb"><u></u></div></div></div>`}).join('')+`</div>`:'';
   const salHTML=(d.salary&&!SE)
    ?`<div class="glass card salcard"><button class="ib edit" data-a="sedit" aria-label="Edit salary">✎</button><div class="sl">${MN[m-1]} salary</div><div class="sv">Rs. ${fmt(d.salary)}</div></div>`
    :`<div class="glass card"><h2>Salary</h2><label>Salary for ${MN[m-1]} (Rs.)<input id="sal" type="number" inputmode="decimal" min="0" step="0.01" value="${d.salary||''}" placeholder="0.00"></label><button class="btn" data-a="sal">Save salary</button>${d.salary?'<button class="btn alt" data-a="scancel" style="margin-top:8px">Cancel</button>':''}</div>`;
@@ -208,6 +228,7 @@ async function showMonth(m){
   <button class="btn alt" data-a="year" style="margin-bottom:14px">All months</button>
   ${salHTML}
   <div class="sum"><div class="glass"><span>Spent</span><b>${fmt(spent)}</b></div><div class="glass"><span>Left</span><b class="${left<0?'neg':'pos'}">${fmt(left)}</b></div></div>
+  ${chartHTML}
   <div class="acc${OPEN?' open':''}"><button class="glass accb" data-a="toggle" aria-expanded="${OPEN}"><span>＋ Add expense</span><i>▾</i></button><div class="accbody"><div class="accin"><div class="glass card">
    <label>Category<select id="eg">${L.map(g=>`<option>${esc(g.name)}</option>`).join('')}</select></label>
    <label>Item<select id="ei"></select></label>
