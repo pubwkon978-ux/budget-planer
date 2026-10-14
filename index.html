@@ -149,6 +149,22 @@ input[type=color].cc::-moz-color-swatch{border:0;border-radius:50%}
 .sw::after{content:"";position:absolute;top:2px;left:2px;width:20px;height:20px;border-radius:50%;background:var(--ink);transition:transform .25s,background .25s}
 .swrow[aria-checked=true] .sw{background:linear-gradient(135deg,var(--g1),var(--g2));border-color:transparent}
 .swrow[aria-checked=true] .sw::after{transform:translateX(18px);background:#fff}
+/* mobile: per-category expense cards + collapsible category buttons */
+.ecard{border-left:5px solid var(--c)}
+.ecard .eh{display:flex;justify-content:space-between;align-items:center;gap:8px;font-weight:700;margin-bottom:2px}
+.ecard .eh span:first-child{display:flex;align-items:center;gap:8px;min-width:0}
+.ecard .eh i{width:11px;height:11px;border-radius:50%;background:var(--c);flex:none}
+.ecard .er:last-child{border-bottom:0}
+.gacc{margin:12px 0}
+.gacc .gb{width:100%;display:flex;justify-content:space-between;align-items:center;gap:10px;padding:13px 14px;border:0;border-radius:14px;background:var(--c);color:#fff;font-weight:700;font-size:15px;text-shadow:0 1px 3px rgba(0,0,0,.45);box-shadow:0 4px 14px rgba(0,0,0,.22)}
+.gacc .gb span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.gacc .gb i{font-style:normal;flex:none;transition:transform .3s}
+.gacc.open .gb i{transform:rotate(180deg)}
+.gacc .gbody{display:grid;grid-template-rows:0fr;opacity:0;transform:translateY(-8px);transition:grid-template-rows .35s cubic-bezier(.2,.8,.2,1),opacity .3s,transform .35s cubic-bezier(.2,.8,.2,1)}
+.gacc.open .gbody{grid-template-rows:1fr;opacity:1;transform:none}
+.gacc .gin{overflow:hidden;min-height:0}
+.gacc .gin>.grp{margin:8px 0 0}
+.gacc .crow{display:flex;align-items:center;gap:10px;font-size:14px;color:var(--mute)}
 /* ---------- desktop mode ---------- */
 html.desk,html.desk body{height:100%;overflow:hidden}
 html.desk body{padding:0}
@@ -386,8 +402,8 @@ async function showMonth(m){
   const salHTML=(d.salary&&!SE)
    ?`<div class="glass card salcard${lp<20?' low':''}" style="--w:${lp.toFixed(1)}%">${lp>0?'<div class="fill"></div>':''}<button class="ib edit" data-a="sedit" aria-label="Edit salary">✎</button><div class="sl">${MN[m-1]} salary</div><div class="sv">Rs. ${fmt(d.salary)}</div><div class="sf">${lp<=0?'Fully spent':fmt(left)+' left · '+lp.toFixed(0)+'%'}</div></div>`
    :`<div class="glass card"><h2>Salary</h2><label>Salary for ${MN[m-1]} (Rs.)<input id="sal" type="number" inputmode="decimal" min="0" step="0.01" value="${d.salary||''}" placeholder="0.00"></label><button class="btn" data-a="sal">Save salary</button>${d.salary?'<button class="btn alt" data-a="scancel" style="margin-top:8px">Cancel</button>':''}</div>`;
-  const rows=Object.keys(by).map(g=>`<div class="gh"><span>${esc(g)}</span><span>${fmt(by[g].reduce((a,e)=>a+e.amount,0))}</span></div>`+
-   by[g].map(e=>`<div class="er"><div>${esc(e.item)}${(e.date||e.note)?`<small>${dLabel(e.date)}${e.date&&e.note?' · ':''}${esc(e.note||'')}</small>`:''}</div><button class="a" data-a="edit" data-id="${e.id}" data-amt="${e.amount}">${fmt(e.amount)}</button><button class="x" data-a="del" data-id="${e.id}" aria-label="Delete">✕</button></div>`).join('')).join('');
+  const rows=Object.keys(by).map(g=>`<div class="glass card ecard" style="--c:${colorOf(g)}"><div class="eh"><span><i></i><span>${esc(g)}</span></span><span>${fmt(by[g].reduce((a,e)=>a+e.amount,0))}</span></div>`+
+   by[g].map(e=>`<div class="er"><div>${esc(e.item)}${(e.date||e.note)?`<small>${dLabel(e.date)}${e.date&&e.note?' · ':''}${esc(e.note||'')}</small>`:''}</div><button class="a" data-a="edit" data-id="${e.id}" data-amt="${e.amount}">${fmt(e.amount)}</button><button class="x" data-a="del" data-id="${e.id}" aria-label="Delete">✕</button></div>`).join('')+`</div>`).join('');
   $('#view').innerHTML=`<div class="bar"><button class="ib" data-a="m-" aria-label="Previous month">‹</button><h1>${MN[m-1]} ${Y}</h1><button class="ib" data-a="m+" aria-label="Next month">›</button></div>
   <button class="btn alt" data-a="year" style="margin-bottom:14px">All months</button>
   ${salHTML}
@@ -401,7 +417,7 @@ async function showMonth(m){
    <label>Date<input id="ed" type="date" value="${dDef}"></label>
    <label>Note<input id="en" placeholder="Optional"></label>
    <button class="btn pink" data-a="add">Add expense</button></div></div></div></div>
-  <div class="glass card"><h2>My expenses</h2>${rows||'<div class="empty">No expenses yet.</div>'}</div>`;
+  <h2 style="margin:18px 4px 10px">My expenses</h2>${rows||'<div class="glass card empty">No expenses yet.</div>'}`;
   fillItems();if(SE&&$('#sal'))$('#sal').focus();
 }
 function fillItems(){
@@ -409,18 +425,20 @@ function fillItems(){
   $('#ei').innerHTML=((grp&&grp.items)||[]).map(i=>`<option>${esc(i)}</option>`).join('')+'<option value="__c">Type my own…</option>';
   $('#ec').hidden=$('#ei').value!='__c';
 }
-document.addEventListener('change',async e=>{if(e.target.closest('#dk'))return;if(e.target.classList.contains('cc')&&e.target.dataset.g!==undefined){L[e.target.dataset.g].color=e.target.value;try{await saveLists();toast('Colour saved')}catch(err){toast('Error: '+(err.code||err.message))}return}
+document.addEventListener('change',async e=>{if(e.target.closest('#dk'))return;if(e.target.classList.contains('cc')&&e.target.dataset.g!==undefined){L[e.target.dataset.g].color=e.target.value;const gb=e.target.closest('.gacc')?.querySelector('.gb');if(gb)gb.style.setProperty('--c',e.target.value);try{await saveLists();toast('Colour saved')}catch(err){toast('Error: '+(err.code||err.message))}return}
   if(e.target.id=='eg')fillItems();if(e.target.id=='ei')$('#ec').hidden=e.target.value!='__c'});
 
+const OG=new Set();
 function drawer(){
   $('#drawer').innerHTML=`<div class="dh"><h2>Manage lists</h2><button class="ib back" data-a="back" aria-label="Close menu"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M15.5 5l-7 7 7 7"/></svg></button></div><div class="user">${esc(U?.email||'')}</div>
   <button class="swrow" data-a="desk" role="switch" aria-checked="false"><span>🖥 Desktop view</span><i class="sw"></i></button>
   <button class="btn pink" data-a="logout">Log out</button>
   <div class="th">${THEMES.map(t=>`<button data-a="theme" data-t="${t[0]}" class="${document.documentElement.dataset.theme==t[0]?'on':''}"><i style="background:${t[2]}"></i>${t[1]}</button>`).join('')}</div>
   <div style="color:var(--mute);font-size:13px;margin-top:12px">These feed the dropdowns when you add an expense.</div>`+
-  L.map((g,gi)=>`<div class="grp"><div class="top"><span class="nm"><input type="color" class="cc" data-g="${gi}" value="${colorOf(g.name)}" aria-label="Category colour">${esc(g.name)}</span><button class="x" data-a="dg" data-g="${gi}">Delete</button></div>
+  L.map((g,gi)=>`<div class="gacc${OG.has(g.name)?' open':''}" data-g="${gi}"><button class="gb" style="--c:${colorOf(g.name)}" data-a="tg" data-g="${gi}" aria-expanded="${OG.has(g.name)}"><span>${esc(g.name)}</span><i>▾</i></button><div class="gbody"><div class="gin"><div class="grp">
+   <div class="top"><label class="crow"><input type="color" class="cc" data-g="${gi}" value="${colorOf(g.name)}" aria-label="Category colour">Colour</label><button class="x" data-a="dg" data-g="${gi}">Delete</button></div>
    <div class="chips">${g.items.map((it,ii)=>`<span class="chip">${esc(it)} <button class="x" data-a="di" data-g="${gi}" data-i="${ii}" aria-label="Remove">✕</button></span>`).join('')||'<span class="empty">No items yet</span>'}</div>
-   <div class="add"><input placeholder="New item" data-in="${gi}"><button class="btn" data-a="ai" data-g="${gi}">Add</button></div></div>`).join('')+
+   <div class="add"><input placeholder="New item" data-in="${gi}"><button class="btn" data-a="ai" data-g="${gi}">Add</button></div></div></div></div></div>`).join('')+
   `<div class="grp"><div class="top">New category</div><div class="add" style="margin-top:8px;align-items:center"><input type="color" class="cc" id="ngc" value="${CC.find(c=>!L.some(g=>g.color==c))||CC[L.length%CC.length]}" aria-label="Colour"><input id="ng" placeholder="e.g. Insurance"><button class="btn" data-a="ag">Add</button></div></div>`;
 }
 const tog=o=>document.body.classList.toggle('open',o);
@@ -456,6 +474,7 @@ document.addEventListener('click',async e=>{
     toast('Expense added');await showMonth(M);$('#eg').value=grp;fillItems();$('#ed').value=date;return}
   if(a=='edit'){const v=prompt('New amount',D.amt);if(v===null)return;const n=parseFloat(v);if(!(n>=0))return toast('Enter a valid amount');await updateDoc(ref("entries",D.id),{amount:n});return showMonth(M)}
   if(a=='del'){if(!confirm('Delete this expense?'))return;await deleteDoc(ref("entries",D.id));return showMonth(M)}
+  if(a=='tg'){const n=L[D.g].name,w=b.closest('.gacc'),o=!OG.has(n);o?OG.add(n):OG.delete(n);w.classList.toggle('open',o);b.setAttribute('aria-expanded',o);return}
   /* list management */
   if(a=='dg'){if(!confirm(`Delete category "${L[D.g].name}"? Past expenses stay.`))return;L.splice(D.g,1)}
   else if(a=='di')L[D.g].items.splice(D.i,1);
