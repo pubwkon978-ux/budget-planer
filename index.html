@@ -248,6 +248,13 @@ html.desk #toast{z-index:50}
 #dk .lg .t span{color:var(--mute);font-size:12px}
 #dk .lb{height:5px;border-radius:4px;background:var(--pbbg);margin-top:4px;overflow:hidden}
 #dk .lb u{display:block;height:100%;width:var(--w);background:var(--c)}
+#dk #addf{container-type:inline-size}
+#dk .afr{display:flex;flex-direction:column;gap:10px 12px}
+#dk .afr .ar1,#dk .afr .ar2{display:flex;gap:12px;align-items:flex-end}
+#dk .afr label{flex:1 1 0;min-width:0;margin-bottom:0}
+#dk .afr [hidden]{display:none!important}
+#dk .afr .btn{flex:none;white-space:nowrap;padding:12px 22px;height:46px}
+@container (min-width:1000px){#dk .afr{flex-direction:row;align-items:flex-end}#dk .afr .ar1{flex:3}#dk .afr .ar2{flex:2.5}}
 #dk .tools{display:flex;gap:8px;margin-bottom:10px}
 #dk .tools input,#dk .tools select{margin:0;padding:9px 11px}
 #dk .tools input{flex:2}
@@ -572,11 +579,12 @@ function monthView(){const m=S.M,es=monthEnts(m),sp=sum(es),sa=S.sal[m]||0,left=
   <div class="two"><div class="glass card"><h2>Spending by category</h2>${ct.length?barChart(ct.map(c=>({l:c.g,v:c.t,c:colorOf(c.g),tip:`${c.g}: ${fmt(c.t)}`}))):'<div class="empty">No expenses yet.</div>'}
    ${ct.map(c=>{const pc=c.t/sp*100;return`<div class="lg" style="--c:${colorOf(c.g)};--w:${pc.toFixed(1)}%"><i></i><div class="t"><div><b>${esc(c.g)}</b><b>${fmt(c.t)}</b></div><div><span>${pc.toFixed(1)}%</span></div><div class="lb"><u></u></div></div></div>`}).join('')}</div>
    <div class="glass card"><h2>Spending by day</h2>${sp>0?barChart(daily.slice(1).map((v,i)=>({l:(i+1==1||(i+1)%5==0)?String(i+1):'',v,c:'#5ab0ff',tip:`${i+1} ${MN[m-1]}: ${fmt(v)}`})),{vals:false}):'<div class="empty">No expenses yet.</div>'}</div></div>
-  <div class="split"><div class="glass card" id="addf"><h2>＋ Add expense</h2>
+  <div class="glass card" id="addf"><h2>＋ Add expense</h2><div class="afr"><div class="ar1">
    <label>Category<select id="eg">${S.L.map(g=>`<option>${esc(g.name)}</option>`).join('')}</select></label><label>Item<select id="ei"></select></label>
-   <label id="ec" hidden>Your own item<input id="eic" placeholder="Type a name"></label><label>Amount (Rs.)<input id="ea" type="number" min="0" step="0.01" placeholder="0.00"></label>
-   <label>Date<input id="ed" type="date" value="${dDef}"></label><label>Note<input id="en" placeholder="Optional"></label><button class="btn pink full" data-a="add">Add expense</button></div>
-   <div><div class="glass card"><div class="tools" style="margin:0"><input id="q" placeholder="Search expenses…  ( / )" value="${esc(S.q)}"><select id="fc"><option value="">All categories</option>${S.L.map(g=>`<option${S.cat==g.name?' selected':''}>${esc(g.name)}</option>`).join('')}</select><b id="tt" style="align-self:center;white-space:nowrap"></b></div></div><div id="tb">${rowsHTML()}</div></div></div>`}
+   <label id="ec" hidden>Your own item<input id="eic" placeholder="Type a name"></label><label>Amount (Rs.)<input id="ea" type="number" min="0" step="0.01" placeholder="0.00"></label></div>
+   <div class="ar2"><label>Date<input id="ed" type="date" value="${dDef}"></label><label>Note<input id="en" placeholder="Optional"></label><button class="btn pink" data-a="add">Add expense</button></div></div></div>
+  <div class="glass card"><div class="tools" style="margin:0"><input id="q" placeholder="Search expenses…  ( / )" value="${esc(S.q)}"><select id="fc"><option value="">All categories</option>${S.L.map(g=>`<option${S.cat==g.name?' selected':''}>${esc(g.name)}</option>`).join('')}</select><b id="tt" style="align-self:center;white-space:nowrap"></b></div></div>
+  <div id="tb">${rowsHTML()}</div>`}
 function rowsHTML(){const q=S.q.toLowerCase(),es=monthEnts(S.M).filter(e=>(!S.cat||e.grp==S.cat)&&(!q||(e.item+' '+(e.note||'')+' '+e.grp).toLowerCase().includes(q)));
   const by={};es.forEach(e=>(by[e.grp]=by[e.grp]||[]).push(e));setTimeout(()=>{const t=$d('#tt');if(t)t.textContent=es.length+' · '+fmt(sum(es))});
   const gs=Object.keys(by).sort((a,b)=>sum(by[b])-sum(by[a]));if(!gs.length)return'<div class="glass card empty">No expenses found.</div>';
