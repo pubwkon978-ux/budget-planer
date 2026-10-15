@@ -165,6 +165,19 @@ input[type=color].cc::-moz-color-swatch{border:0;border-radius:50%}
 .gacc .gin{overflow:hidden;min-height:0}
 .gacc .gin>.grp{margin:8px 0 0}
 .gacc .crow{display:flex;align-items:center;gap:10px;font-size:14px;color:var(--mute)}
+/* scheduled expenses */
+#sch{display:none;position:fixed;inset:0;z-index:15;place-items:center}
+#sch.on{display:grid}html.desk #sch{z-index:40}
+#sch .scrim{position:absolute;inset:0;background:rgba(0,0,0,.55)}
+#sch .sbox{position:relative;width:min(480px,94vw);max-height:90vh;overflow:auto;padding:18px;background:var(--drawer)}
+#sch .sh{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:12px}
+#sch .sh h2{margin:0;font-size:18px}
+#sch h3{margin:14px 0 8px;font-size:15px}
+#sch .s2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+#sch .shint{font-size:13px;color:var(--mute);margin:-2px 0 10px}
+#sch .sc{display:flex;align-items:center;gap:8px;padding:10px 12px;border-radius:14px;border:1px solid var(--line);border-left:5px solid var(--c);background:var(--grp);margin-bottom:8px}
+#sch .sc>div{flex:1;min-width:0}#sch .sc small{display:block;color:var(--mute)}
+#sch .row{display:flex;gap:8px}#sch .row>*{flex:1}
 /* ---------- desktop mode ---------- */
 html.desk,html.desk body{height:100%;overflow:hidden}
 html.desk body{padding:0}
@@ -300,11 +313,11 @@ html.desk,html.desk body{overflow-x:auto}
 <div class="bg"><i></i><i></i><i></i><i></i></div>
 <header class="glass" id="hd" hidden><button class="ib" id="mb" aria-label="Menu">☰</button><b>Budget Planner</b></header>
 <main id="view"></main>
-<div id="scrim"></div><aside id="drawer" class="glass"></aside><div id="toast"></div>
+<div id="scrim"></div><aside id="drawer" class="glass"></aside><div id="toast"></div><div id="sch"></div>
 <div id="dk" hidden><div id="off">Offline – showing saved data, changes can't be saved</div>
 <div id="app"><aside class="side glass"><div class="logo">👛 Budget Planner</div>
 <div class="yr"><button class="ib" data-a="y-" aria-label="Previous year">‹</button><b id="ylab"></b><button class="ib" data-a="y+" aria-label="Next year">›</button></div>
-<button class="nav" data-a="year" id="nv-home">🏠 All months</button><button class="nav" data-a="lists">⚙ Manage lists</button>
+<button class="nav" data-a="year" id="nv-home">🏠 All months</button><button class="nav" data-a="lists">⚙ Manage lists</button><button class="nav" data-a="sched">📅 Schedule your expense</button>
 <button class="nav" data-a="refresh">⟳ Refresh</button><button class="nav" data-a="full">⛶ Full screen</button>
 <div class="th" id="th"></div>
 <button class="swrow" data-a="tomobile" role="switch" aria-checked="true"><span>🖥 Desktop view</span><i class="sw"></i></button>
@@ -328,7 +341,7 @@ const $=s=>document.querySelector(s);
 const MN=["January","February","March","April","May","June","July","August","September","October","November","December"];
 const COL=["#ff6bb5","#ff8a5c","#ffd166","#a3e635","#3ff2a5","#22d3ee","#5ab0ff","#8b9cff","#c084fc","#f472b6","#fb923c","#34d399"];
 const DEFAULTS=[["Bills",["Electricity","Water","Internet","Phone"]],["Loans",["Bank loan","Leasing","Credit card"]],["Food",["Groceries","Eating out"]],["Transport",["Fuel","Bus / Train"]],["Savings",["Savings","Fixed deposit"]],["Other",["Medical","Gifts"]]].map(([name,items])=>({name,items}));
-let SE=false,OPEN=false,U=null,Y=new Date().getFullYear(),M=null,L=[];
+let SE=false,OPEN=false,U=null,Y=new Date().getFullYear(),M=null,L=[],SCH=[];
 const fmt=n=>(+n||0).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
 const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const THEMES=[["purple","Purple","linear-gradient(135deg,#ff3d9a,#8b5cf6,#22d3ee)","#1b1038"],["light","White","linear-gradient(135deg,#fff,#e3d4ff,#bfe3ff)","#f3e8ff"],["green","Black & Green","linear-gradient(135deg,#000,#00b36b,#00ff88)","#000000"],["black","Dark","linear-gradient(135deg,#000,#2a2a2a,#555)","#000000"]];
@@ -359,18 +372,18 @@ onAuthStateChanged(auth,async u=>{
   U=u;
   if(!u){applyMode();showLogin();return}
   $('#hd').hidden=false;
-  await loadLists();applyMode();
+  await loadLists();try{const n=await runSchedules();if(n)setTimeout(()=>toast(n+' scheduled expense'+(n>1?'s':'')+' added'),600)}catch(e){}applyMode();
   if(DESK)DK.show();else showYear();
 });
 
 /* ---------- data ---------- */
 async function loadLists(){
   const s=await getDoc(ref("meta","lists"));
-  if(s.exists())L=s.data().groups;
-  else{L=DEFAULTS}
+  if(s.exists()){L=s.data().groups;SCH=s.data().schedules||[]}
+  else{L=DEFAULTS;SCH=[]}
   if(L.some(g=>!g.color)){L.forEach((g,i)=>{if(!g.color)g.color=CC[i%CC.length]});await saveLists()}
 }
-const saveLists=()=>setDoc(ref("meta","lists"),{groups:L});
+const saveLists=()=>setDoc(ref("meta","lists"),{groups:L,schedules:SCH});
 
 async function monthData(y,m){
   const s=await getDoc(ref("months",y+"_"+m));
@@ -439,6 +452,7 @@ const OG=new Set();
 function drawer(){
   $('#drawer').innerHTML=`<div class="dh"><h2>Manage lists</h2><button class="ib back" data-a="back" aria-label="Close menu"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M15.5 5l-7 7 7 7"/></svg></button></div><div class="user">${esc(U?.email||'')}</div>
   <button class="swrow" data-a="desk" role="switch" aria-checked="false"><span>🖥 Desktop view</span><i class="sw"></i></button>
+  <button class="btn alt" data-a="sched" style="margin:0 0 12px">📅 Schedule your expense</button>
   <button class="btn pink" data-a="logout">Log out</button>
   <div class="th">${THEMES.map(t=>`<button data-a="theme" data-t="${t[0]}" class="${document.documentElement.dataset.theme==t[0]?'on':''}"><i style="background:${t[2]}"></i>${t[1]}</button>`).join('')}</div>
   <div style="color:var(--mute);font-size:13px;margin-top:12px">These feed the dropdowns when you add an expense.</div>`+
@@ -460,6 +474,7 @@ document.addEventListener('click',async e=>{
   if(a=='login')return login();
   if(a=='desk'){b.setAttribute('aria-checked','true');setTimeout(()=>setDesk(true),220);return}
   if(a=='back')return closeDrawer();
+  if(a=='sched'){tog(false);return openSched()}
   if(a=='theme'){applyTheme(D.t);return drawer()}
   if(a=='logout'){tog(false);await signOut(auth);return}
   if(a=='y-'){Y--;return showYear()} if(a=='y+'){Y++;return showYear()}
@@ -467,7 +482,7 @@ document.addEventListener('click',async e=>{
   if(a=='toggle'){OPEN=!OPEN;b.closest('.acc').classList.toggle('open',OPEN);b.setAttribute('aria-expanded',OPEN);return}
   if(a=='month'){SE=false;OPEN=false;return showMonth(+D.m)}
   if(a=='m-'||a=='m+'){let m=M+(a=='m+'?1:-1);if(m<1){m=12;Y--}if(m>12){m=1;Y++}SE=false;OPEN=false;return showMonth(m)}
-  if(a=='sal'){await setDoc(ref("months",Y+"_"+M),{y:Y,m:M,salary:parseFloat($('#sal').value)||0});SE=false;toast('Salary saved');return showMonth(M)}
+  if(a=='sal'){await setDoc(ref("months",Y+"_"+M),{y:Y,m:M,salary:parseFloat($('#sal').value)||0});SE=false;let n=0;try{n=await runSchedules()}catch(e){}toast(n?`Salary saved · ${n} scheduled expense${n>1?'s':''} added`:'Salary saved');return showMonth(M)}
   if(a=='sedit'){SE=true;return showMonth(M)}
   if(a=='scancel'){SE=false;return showMonth(M)}
   if(a=='add'){
@@ -629,9 +644,10 @@ root.addEventListener('click',async ev=>{const b=ev.target.closest('[data-a]');i
   if(a=='month')return goMonth(+D.m);
   if(a=='m-'||a=='m+'){let m=S.M+(a=='m+'?1:-1),y=S.Y;if(m<1){m=12;y--}if(m>12){m=1;y++}return goMonth(m,y)}
   if(a=='lists')return listsModal();
+  if(a=='sched')return openSched();
   if(a=='sedit'){S.SE=true;render();return $d('#sal')?.focus()}
   if(a=='scancel'){S.SE=false;return render()}
-  if(a=='sal'){const v=parseFloat($d('#sal').value)||0,y=S.Y,m=S.M;S.SE=false;return write(()=>setDoc(ref("months",y+"_"+m),{y,m,salary:v}),'Salary saved')}
+  if(a=='sal'){const v=parseFloat($d('#sal').value)||0,y=S.Y,m=S.M;S.SE=false;return write(async()=>{await setDoc(ref("months",y+"_"+m),{y,m,salary:v});try{await runSchedules()}catch(e){}},'Salary saved')}
   if(a=='add'){const grp=$d('#eg').value;let item=$d('#ei').value;if(item=='__c')item=$d('#eic').value.trim();const amount=parseFloat($d('#ea').value),date=$d('#ed').value,note=$d('#en').value;
     if(!grp)return toast('Add a category in Manage lists first');if(!item)return toast('Choose or type an item');if(!(amount>=0))return toast('Enter an amount');if(!date)return toast('Choose a date');
     if(await write(()=>addDoc(col("entries"),{y:S.Y,m:S.M,grp,item,amount,date,note,ts:Date.now()}),'Expense added')){$d('#eg').value=grp;fillItems();$d('#ed').value=date;$d('#ea').focus()}return}
@@ -664,10 +680,112 @@ window.addEventListener('online',()=>{if(isDesk()){setOff(false);refresh()}});
 setInterval(()=>{if(isDesk()&&!document.hidden)refresh()},90000);
 
 return{
+  refresh:()=>refresh(true),
   show(){S.ld=true;S.SE=false;S.q='';S.cat='';render();return refresh(true)},
   hide(){$d('#modal').classList.remove('on');$d('#modal').innerHTML='';if(ASK){ASK(false);ASK=null}$d('#dview').innerHTML='';setOff(false)}
 };
 })();
+
+/* ---------- scheduled (recurring) expenses ---------- */
+const dimG=(y,m)=>new Date(y,m,0).getDate();
+const ordn=n=>{const v=n%100;return n+(['th','st','nd','rd'][(v-20)%10]||['th','st','nd','rd'][v]||'th')};
+const dFull=d=>{const [y,m,dd]=d.split('-');return +dd+' '+MN[m-1].slice(0,3)+' '+y};
+const todayStr=()=>{const t=new Date();return `${t.getFullYear()}-${pad(t.getMonth()+1)}-${pad(t.getDate())}`};
+async function runSchedules(){
+  if(!U||!SCH.length||!navigator.onLine)return 0;
+  const td=todayStr(),sal={};let added=0,changed=false;
+  for(const s of SCH){
+    s.done=s.done||[];
+    const [ty,tm]=s.to.split('-').map(Number);let [y,m]=s.from.split('-').map(Number);
+    while(y<ty||(y==ty&&m<=tm)){
+      const date=`${y}-${pad(m)}-${pad(Math.min(s.day,dimG(y,m)))}`;
+      if(date>td)break;
+      const key=y+'_'+m;
+      if(date>=s.from&&date<=s.to&&!s.done.includes(key)){
+        if(!(key in sal)){const d=await getDoc(ref("months",key));sal[key]=d.exists()?(+d.data().salary||0):0}
+        if(sal[key]>0){
+          await setDoc(ref("entries","sch_"+s.id+"_"+key),{y,m,grp:s.grp,item:s.item,amount:s.amount,date,note:s.note||'Scheduled',ts:Date.now(),sid:s.id});
+          s.done.push(key);added++;changed=true}
+      }
+      m++;if(m>12){m=1;y++}
+    }
+  }
+  if(changed)await saveLists();
+  return added;
+}
+function firstOcc(s){let [y,m]=s.from.split('-').map(Number);for(let i=0;i<2;i++){const d=`${y}-${pad(m)}-${pad(Math.min(s.day,dimG(y,m)))}`;if(d>=s.from)return d;m++;if(m>12){m=1;y++}}return s.from}
+const sq=x=>document.querySelector('#sch '+x);
+let SCHEDIT=null;
+function openSched(id){SCHEDIT=id||null;$('#sch').classList.add('on');renderSched()}
+function closeSched(){$('#sch').classList.remove('on');$('#sch').innerHTML=''}
+function refreshView(){if(isDesk())DK.refresh();else if(U){M?showMonth(M):showYear()}}
+function renderSched(){
+  const e=SCH.find(x=>x.id==SCHEDIT)||null,t=todayStr();
+  const from=e?e.from:t,to=e?e.to:t.slice(0,4)+'-12-31',pay=e?firstOcc(e):t;
+  const gs=L.map(g=>g.name);if(e&&!gs.includes(e.grp))gs.push(e.grp);
+  $('#sch').innerHTML=`<div class="scrim" data-sa="close"></div><div class="glass sbox">
+  <div class="sh"><h2>📅 Schedule your expense</h2><button class="ib" data-sa="close" aria-label="Close">✕</button></div>
+  <div style="color:var(--mute);font-size:13px">Repeats every month on the chosen day. It is added to your list automatically once that day arrives and that month's salary is saved.</div>
+  <div style="margin-top:12px">${SCH.map(s=>`<div class="sc" style="--c:${colorOf(s.grp)}"><div><b>${esc(s.item)}</b> · Rs. ${fmt(s.amount)}<small>${esc(s.grp)} · every month on the ${ordn(s.day)}</small><small>${dFull(s.from)} → ${dFull(s.to)} · ${s.done.length} added</small></div><button class="ib" data-sa="edit" data-id="${s.id}" aria-label="Edit">✎</button><button class="ib" data-sa="del" data-id="${s.id}" aria-label="Delete">✕</button></div>`).join('')||'<div class="empty">No scheduled expenses yet.</div>'}</div>
+  <h3>${e?'Edit scheduled expense':'New scheduled expense'}</h3>
+  <div class="s2"><label>From<input id="sf-f" type="date" value="${from}"></label><label>To<input id="sf-t" type="date" value="${to}"></label></div>
+  <label>Category<select id="sf-g">${gs.map(g=>`<option${e&&e.grp==g?' selected':''}>${esc(g)}</option>`).join('')}</select></label>
+  <label>Item<select id="sf-i"></select></label><label id="sf-c" hidden>Your own item<input id="sf-c2" placeholder="Type a name"></label>
+  <div class="s2"><label>Amount (Rs.)<input id="sf-a" type="number" inputmode="decimal" min="0" step="0.01" placeholder="0.00" value="${e?e.amount:''}"></label><label>Pay date<input id="sf-d" type="date" value="${pay}"></label></div>
+  <div class="shint" id="sf-h"></div>
+  <label>Note<input id="sf-n" placeholder="Optional" value="${e?esc(e.note||''):''}"></label>
+  <div class="row">${e?'<button class="btn alt" data-sa="cancel">Cancel edit</button>':''}<button class="btn pink" data-sa="save">${e?'Update schedule':'Save schedule'}</button></div></div>`;
+  schItems(e?e.item:'');schHint();
+}
+function schItems(sel){
+  const g=L.find(x=>x.name==sq('#sf-g').value),items=(g&&g.items)||[],i=sq('#sf-i');
+  i.innerHTML=items.map(x=>`<option>${esc(x)}</option>`).join('')+'<option value="__c">Type my own…</option>';
+  if(sel){if(items.includes(sel))i.value=sel;else{i.value='__c';sq('#sf-c2').value=sel}}
+  sq('#sf-c').hidden=i.value!='__c';
+}
+function schHint(){
+  const f=sq('#sf-f').value,t=sq('#sf-t').value,d=sq('#sf-d');
+  if(f)d.min=f;if(t)d.max=t;
+  sq('#sf-h').textContent=d.value?`Every month on the ${ordn(+d.value.slice(8,10))}${+d.value.slice(8,10)>28?' (or the last day of shorter months)':''}`:'Pick the pay date from the calendar';
+}
+async function saveSched(){
+  const from=sq('#sf-f').value,to=sq('#sf-t').value,grp=sq('#sf-g').value,pay=sq('#sf-d').value,amount=parseFloat(sq('#sf-a').value);
+  let item=sq('#sf-i').value;if(item=='__c')item=sq('#sf-c2').value.trim();
+  if(!from||!to)return toast('Choose the date range');
+  if(to<from)return toast('"To" date must be after "From"');
+  if(!grp)return toast('Choose a category');
+  if(!item)return toast('Choose or type an item');
+  if(!(amount>=0)||sq('#sf-a').value==='')return toast('Enter an amount');
+  if(!pay)return toast('Choose the pay date');
+  const f={from,to,day:+pay.slice(8,10),grp,item,amount,note:sq('#sf-n').value.trim()};
+  try{
+    const e=SCH.find(x=>x.id==SCHEDIT);
+    if(e)Object.assign(e,f);else SCH.push({id:Date.now().toString(36)+Math.random().toString(36).slice(2,5),...f,done:[]});
+    await saveLists();SCHEDIT=null;
+    const n=await runSchedules();
+    toast(n?`Schedule saved · ${n} expense${n>1?'s':''} added`:'Schedule saved');
+    renderSched();if(n)refreshView();
+  }catch(err){toast(!navigator.onLine?"No internet – not saved":(err.code||err.message||'Error'))}
+}
+$('#sch').addEventListener('click',async ev=>{
+  const b=ev.target.closest('[data-sa]');if(!b)return;const a=b.dataset.sa;
+  if(a=='close')return closeSched();
+  if(a=='edit'){SCHEDIT=b.dataset.id;renderSched();return $('#sch .sbox').scrollTo({top:9999,behavior:'smooth'})}
+  if(a=='cancel'){SCHEDIT=null;return renderSched()}
+  if(a=='save')return saveSched();
+  if(a=='del'){
+    if(!confirm('Delete this schedule? Expenses already added stay.'))return;
+    try{const i=SCH.findIndex(x=>x.id==b.dataset.id);if(i>=0)SCH.splice(i,1);if(SCHEDIT==b.dataset.id)SCHEDIT=null;await saveLists();toast('Schedule deleted');renderSched()}
+    catch(err){toast(err.code||err.message||'Error')}}
+});
+$('#sch').addEventListener('change',ev=>{const id=ev.target.id;
+  if(id=='sf-g')schItems('');if(id=='sf-i')sq('#sf-c').hidden=ev.target.value!='__c';
+  if(id=='sf-f'||id=='sf-t'||id=='sf-d')schHint()});
+document.addEventListener('keydown',e=>{if(e.key=='Escape'&&$('#sch').classList.contains('on')){e.stopImmediatePropagation();closeSched()}},true);
+let lastRun=0;
+document.addEventListener('visibilitychange',async()=>{
+  if(document.hidden||!U||Date.now()-lastRun<60000)return;lastRun=Date.now();
+  try{const n=await runSchedules();if(n){toast(n+' scheduled expense'+(n>1?'s':'')+' added');refreshView()}}catch(e){}});
 
 if('serviceWorker' in navigator)navigator.serviceWorker.register('sw.js').catch(()=>{});
 </script></body></html>
