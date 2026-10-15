@@ -336,7 +336,7 @@ html.desk,html.desk body{overflow-x:auto}
 <div id="dk" hidden><div id="off">Offline – showing saved data, changes can't be saved</div>
 <div id="app"><aside class="side glass"><div class="logo">👛 Budget Planner</div>
 <div class="yr"><button class="ib" data-a="y-" aria-label="Previous year">‹</button><b id="ylab"></b><button class="ib" data-a="y+" aria-label="Next year">›</button></div>
-<button class="nav" data-a="year" id="nv-home">🏠 All months</button><button class="nav" data-a="lists">⚙ Manage lists</button><button class="nav" data-a="sched">📅 Schedule your expense</button><button class="nav" data-a="accs">🏦 Add another account</button>
+<button class="nav" data-a="year" id="nv-home">🏠 All months</button><button class="nav" data-a="lists">⚙ Manage lists</button><button class="nav" data-a="sched">📅 Schedule your expense</button><button class="nav" data-a="accs">🏦 Your savings</button>
 <button class="nav" data-a="refresh">⟳ Refresh</button><button class="nav" data-a="full">⛶ Full screen</button>
 <div class="th" id="th"></div>
 <button class="swrow" data-a="tomobile" role="switch" aria-checked="true"><span>🖥 Desktop view</span><i class="sw"></i></button>
@@ -473,7 +473,7 @@ function drawer(){
   $('#drawer').innerHTML=`<div class="dh"><h2>Manage lists</h2><button class="ib back" data-a="back" aria-label="Close menu"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M15.5 5l-7 7 7 7"/></svg></button></div><div class="user">${esc(U?.email||'')}</div>
   <button class="swrow" data-a="desk" role="switch" aria-checked="false"><span>🖥 Desktop view</span><i class="sw"></i></button>
   <button class="btn alt" data-a="sched" style="margin:0 0 12px">📅 Schedule your expense</button>
-  <button class="btn alt" data-a="accs" style="margin:0 0 12px">🏦 Add another account</button>
+  <button class="btn alt" data-a="accs" style="margin:0 0 12px">🏦 Your savings</button>
   <button class="btn pink" data-a="logout">Log out</button>
   <div class="th">${THEMES.map(t=>`<button data-a="theme" data-t="${t[0]}" class="${document.documentElement.dataset.theme==t[0]?'on':''}"><i style="background:${t[2]}"></i>${t[1]}</button>`).join('')}</div>
   <div style="color:var(--mute);font-size:13px;margin-top:12px">These feed the dropdowns when you add an expense.</div>`+
