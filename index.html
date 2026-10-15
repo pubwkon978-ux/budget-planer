@@ -183,6 +183,20 @@ input[type=color].cc::-moz-color-swatch{border:0;border-radius:50%}
 #sch .sc{display:flex;align-items:center;gap:8px;padding:10px 12px;border-radius:14px;border:1px solid var(--line);border-left:5px solid var(--c);background:var(--grp);margin-bottom:8px}
 #sch .sc>div{flex:1;min-width:0}#sch .sc small{display:block;color:var(--mute)}
 #sch .row{display:flex;gap:8px}#sch .row>*{flex:1}
+/* savings accounts */
+.accs{display:grid;gap:10px;margin-bottom:14px}
+.acard{display:flex;align-items:center;gap:12px;padding:12px 14px;border-left:5px solid var(--g2)}
+.acard .ai{font-size:22px}
+.acard .at{flex:1;min-width:0}
+.acard .at b{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.acard .at span{color:var(--mute)}
+.acard.lk{opacity:.55}
+.acard.sel{border-left-color:var(--green);box-shadow:0 0 0 2px var(--green),0 8px 32px rgba(0,0,0,.25)}
+.acard .lock{font-size:18px}
+.abtn{border:1px solid var(--line);background:var(--glass);color:var(--ink);border-radius:12px;padding:8px 14px;font-weight:700}
+.acard.sel .abtn{background:linear-gradient(135deg,var(--g1),var(--g2));color:var(--btnink);border-color:transparent}
+.ahint{grid-column:1/-1;font-size:12.5px;color:var(--mute);margin:0 4px}
+#dk .accs{grid-template-columns:repeat(auto-fill,minmax(260px,1fr))}
 /* ---------- desktop mode ---------- */
 html.desk,html.desk body{height:100%;overflow:hidden}
 html.desk body{padding:0}
@@ -322,7 +336,7 @@ html.desk,html.desk body{overflow-x:auto}
 <div id="dk" hidden><div id="off">Offline – showing saved data, changes can't be saved</div>
 <div id="app"><aside class="side glass"><div class="logo">👛 Budget Planner</div>
 <div class="yr"><button class="ib" data-a="y-" aria-label="Previous year">‹</button><b id="ylab"></b><button class="ib" data-a="y+" aria-label="Next year">›</button></div>
-<button class="nav" data-a="year" id="nv-home">🏠 All months</button><button class="nav" data-a="lists">⚙ Manage lists</button><button class="nav" data-a="sched">📅 Schedule your expense</button>
+<button class="nav" data-a="year" id="nv-home">🏠 All months</button><button class="nav" data-a="lists">⚙ Manage lists</button><button class="nav" data-a="sched">📅 Schedule your expense</button><button class="nav" data-a="accs">🏦 Add another account</button>
 <button class="nav" data-a="refresh">⟳ Refresh</button><button class="nav" data-a="full">⛶ Full screen</button>
 <div class="th" id="th"></div>
 <button class="swrow" data-a="tomobile" role="switch" aria-checked="true"><span>🖥 Desktop view</span><i class="sw"></i></button>
@@ -346,7 +360,7 @@ const $=s=>document.querySelector(s);
 const MN=["January","February","March","April","May","June","July","August","September","October","November","December"];
 const COL=["#ff6bb5","#ff8a5c","#ffd166","#a3e635","#3ff2a5","#22d3ee","#5ab0ff","#8b9cff","#c084fc","#f472b6","#fb923c","#34d399"];
 const DEFAULTS=[["Bills",["Electricity","Water","Internet","Phone"]],["Loans",["Bank loan","Leasing","Credit card"]],["Food",["Groceries","Eating out"]],["Transport",["Fuel","Bus / Train"]],["Savings",["Savings","Fixed deposit"]],["Other",["Medical","Gifts"]]].map(([name,items])=>({name,items}));
-let SE=false,OPEN=false,U=null,Y=new Date().getFullYear(),M=null,L=[],SCH=[];
+let SE=false,OPEN=false,U=null,Y=new Date().getFullYear(),M=null,L=[],SCH=[],ACC=[],SELM={},CURM={sal:0,left:0};
 const fmt=n=>(+n||0).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
 const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const THEMES=[["purple","Purple","linear-gradient(135deg,#ff3d9a,#8b5cf6,#22d3ee)","#1b1038"],["light","White","linear-gradient(135deg,#fff,#e3d4ff,#bfe3ff)","#f3e8ff"],["green","Black & Green","linear-gradient(135deg,#000,#00b36b,#00ff88)","#000000"],["black","Dark","linear-gradient(135deg,#000,#2a2a2a,#555)","#000000"]];
@@ -384,11 +398,11 @@ onAuthStateChanged(auth,async u=>{
 /* ---------- data ---------- */
 async function loadLists(){
   const s=await getDoc(ref("meta","lists"));
-  if(s.exists()){L=s.data().groups;SCH=s.data().schedules||[]}
-  else{L=DEFAULTS;SCH=[]}
+  if(s.exists()){const x=s.data();L=x.groups;SCH=x.schedules||[];ACC=x.accounts||[];SELM=x.sel||{}}
+  else{L=DEFAULTS;SCH=[];ACC=[];SELM={}}
   if(L.some(g=>!g.color)){L.forEach((g,i)=>{if(!g.color)g.color=CC[i%CC.length]});await saveLists()}
 }
-const saveLists=()=>setDoc(ref("meta","lists"),{groups:L,schedules:SCH});
+const saveLists=()=>setDoc(ref("meta","lists"),{groups:L,schedules:SCH,accounts:ACC,sel:SELM});
 
 async function monthData(y,m){
   const s=await getDoc(ref("months",y+"_"+m));
@@ -412,7 +426,7 @@ async function showYear(){
 
 async function showMonth(m){
   M=m;const d=await monthData(Y,m);
-  const spent=d.entries.reduce((a,e)=>a+e.amount,0),left=d.salary-spent,by={};
+  const spent=d.entries.reduce((a,e)=>a+e.amount,0),left=d.salary-spent,by={};CURM={sal:d.salary,left};
   d.entries.forEach(e=>(by[e.grp]=by[e.grp]||[]).push(e));
   const now=new Date(),dMin=`${Y}-${pad(m)}-01`,
     dDef=(now.getFullYear()==Y&&now.getMonth()+1==m)?`${Y}-${pad(m)}-${pad(now.getDate())}`:dMin;
@@ -428,10 +442,11 @@ async function showMonth(m){
    ?`<div class="glass card salcard${lp<20?' low':''}" style="--w:${lp.toFixed(1)}%">${lp>0?'<div class="fill"></div>':''}<button class="ib edit" data-a="sedit" aria-label="Edit salary">✎</button><div class="sl">${MN[m-1]} salary</div><div class="sv">Rs. ${fmt(d.salary)}</div><div class="sf">${lp<=0?'Fully spent':fmt(left)+' left · '+lp.toFixed(0)+'%'}</div></div>`
    :`<div class="glass card"><h2>Salary</h2><label>Salary for ${MN[m-1]} (Rs.)<input id="sal" type="number" inputmode="decimal" min="0" step="0.01" value="${d.salary||''}" placeholder="0.00"></label><button class="btn" data-a="sal">Save salary</button>${d.salary?'<button class="btn alt" data-a="scancel" style="margin-top:8px">Cancel</button>':''}</div>`;
   const rows=Object.keys(by).map(g=>`<div class="glass card ecard" style="--c:${colorOf(g)}"><div class="eh"><span><i></i><span>${esc(g)}</span></span><span>${fmt(by[g].reduce((a,e)=>a+e.amount,0))}</span></div>`+
-   by[g].map(e=>`<div class="er"><div>${esc(e.item)}${(e.date||e.note)?`<small>${dLabel(e.date)}${e.date&&e.note?' · ':''}${esc(e.note||'')}</small>`:''}</div><button class="a" data-a="edit" data-id="${e.id}" data-amt="${e.amount}">${fmt(e.amount)}</button><button class="x" data-a="del" data-id="${e.id}" aria-label="Delete">✕</button></div>`).join('')+`</div>`).join('');
+   by[g].map(e=>{const sub=[dLabel(e.date),esc(e.note||''),e.acc&&accName(e.acc)?'🏦 '+esc(accName(e.acc)):''].filter(Boolean).join(' · ');return `<div class="er"><div>${esc(e.item)}${sub?`<small>${sub}</small>`:''}</div><button class="a" data-a="edit" data-id="${e.id}" data-amt="${e.amount}" data-acc="${e.acc||''}">${fmt(e.amount)}</button><button class="x" data-a="del" data-id="${e.id}" data-amt="${e.amount}" data-acc="${e.acc||''}" aria-label="Delete">✕</button></div>`}).join('')+`</div>`).join('');
   $('#view').innerHTML=`<div class="bar"><button class="ib" data-a="m-" aria-label="Previous month">‹</button><h1>${MN[m-1]} ${Y}</h1><button class="ib" data-a="m+" aria-label="Next month">›</button></div>
   <button class="btn alt" data-a="year" style="margin-bottom:14px">All months</button>
   ${salHTML}
+  ${accCardsHTML(Y,m,d.salary,left)}
   <div class="sum"><div class="glass"><span>Spent</span><b>${fmt(spent)}</b></div><div class="glass"><span>Left</span><b class="${left<0?'neg':'pos'}">${fmt(left)}</b></div></div>
   ${chartHTML}
   <div class="acc${OPEN?' open':''}"><button class="glass accb" data-a="toggle" aria-expanded="${OPEN}"><span>＋ Add expense</span><i>▾</i></button><div class="accbody"><div class="accin"><div class="glass card">
@@ -458,6 +473,7 @@ function drawer(){
   $('#drawer').innerHTML=`<div class="dh"><h2>Manage lists</h2><button class="ib back" data-a="back" aria-label="Close menu"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M15.5 5l-7 7 7 7"/></svg></button></div><div class="user">${esc(U?.email||'')}</div>
   <button class="swrow" data-a="desk" role="switch" aria-checked="false"><span>🖥 Desktop view</span><i class="sw"></i></button>
   <button class="btn alt" data-a="sched" style="margin:0 0 12px">📅 Schedule your expense</button>
+  <button class="btn alt" data-a="accs" style="margin:0 0 12px">🏦 Add another account</button>
   <button class="btn pink" data-a="logout">Log out</button>
   <div class="th">${THEMES.map(t=>`<button data-a="theme" data-t="${t[0]}" class="${document.documentElement.dataset.theme==t[0]?'on':''}"><i style="background:${t[2]}"></i>${t[1]}</button>`).join('')}</div>
   <div style="color:var(--mute);font-size:13px;margin-top:12px">These feed the dropdowns when you add an expense.</div>`+
@@ -480,6 +496,8 @@ document.addEventListener('click',async e=>{
   if(a=='desk'){b.setAttribute('aria-checked','true');setTimeout(()=>setDesk(true),220);return}
   if(a=='back')return closeDrawer();
   if(a=='sched'){tog(false);return openSched()}
+  if(a=='accs'){tog(false);return openAcc()}
+  if(a=='accuse'){const k=Y+'_'+M;if(SELM[k]==D.id)delete SELM[k];else SELM[k]=D.id;await saveLists();return showMonth(M)}
   if(a=='theme'){applyTheme(D.t);return drawer()}
   if(a=='logout'){tog(false);await signOut(auth);return}
   if(a=='y-'){Y--;return showYear()} if(a=='y+'){Y++;return showYear()}
@@ -497,10 +515,13 @@ document.addEventListener('click',async e=>{
     if(!item)return toast('Choose or type an item');
     if(!(amount>=0))return toast('Enter an amount');
     if(!date)return toast('Choose a date');
-    await addDoc(col("entries"),{y:Y,m:M,grp,item,amount,date,note:$('#en').value,ts:Date.now()});
+    const acc=activeAcc(Y,M,CURM.sal,CURM.left);
+    if(acc){const A=ACC.find(x=>x.id==acc);if(amount>A.balance)return toast('Not enough balance in '+A.name)}
+    await addDoc(col("entries"),{y:Y,m:M,grp,item,amount,date,note:$('#en').value,ts:Date.now(),...(acc?{acc}:{})});
+    if(acc)await accAdjust(acc,-amount);
     toast('Expense added');await showMonth(M);$('#eg').value=grp;fillItems();$('#ed').value=date;return}
-  if(a=='edit'){const v=prompt('New amount',D.amt);if(v===null)return;const n=parseFloat(v);if(!(n>=0))return toast('Enter a valid amount');await updateDoc(ref("entries",D.id),{amount:n});return showMonth(M)}
-  if(a=='del'){if(!confirm('Delete this expense?'))return;await deleteDoc(ref("entries",D.id));return showMonth(M)}
+  if(a=='edit'){const v=prompt('New amount',D.amt);if(v===null)return;const n=parseFloat(v);if(!(n>=0))return toast('Enter a valid amount');const A=ACC.find(x=>x.id==D.acc),diff=n-(+D.amt||0);if(A&&diff>A.balance)return toast('Not enough balance in '+A.name);await updateDoc(ref("entries",D.id),{amount:n});if(A)await accAdjust(A.id,-diff);return showMonth(M)}
+  if(a=='del'){if(!confirm('Delete this expense?'))return;await deleteDoc(ref("entries",D.id));if(D.acc)await accAdjust(D.acc,+D.amt||0);return showMonth(M)}
   if(a=='tg'){const n=L[D.g].name,w=b.closest('.gacc'),o=!OG.has(n);o?OG.add(n):OG.delete(n);w.classList.toggle('open',o);b.setAttribute('aria-expanded',o);return}
   /* list management */
   if(a=='dg'){if(!confirm(`Delete category "${L[D.g].name}"? Past expenses stay.`))return;L.splice(D.g,1)}
@@ -594,7 +615,7 @@ function monthView(){const m=S.M,es=monthEnts(m),sp=sum(es),sa=S.sal[m]||0,left=
    :`<div class="glass card"><h2>Salary for ${MN[m-1]} (Rs.)</h2><input id="sal" type="number" min="0" step="0.01" value="${sa||''}" placeholder="0.00"><div class="row" style="margin-top:10px"><button class="btn" data-a="sal">Save salary</button>${sa?'<button class="btn alt" data-a="scancel">Cancel</button>':''}</div></div>`;
   return`<div class="bar2"><button class="ib" data-a="m-">‹</button><h1>${MN[m-1]} ${S.Y}</h1><button class="ib" data-a="m+">›</button><div class="sp"></div>
    <button class="btn alt" data-a="year">All months</button></div>
-  ${sal}<div class="stats"><div class="glass stat"><span>Spent</span><b>${fmt(sp)}</b></div><div class="glass stat"><span>Left</span><b class="${left<0?'neg':'pos'}">${fmt(left)}</b></div>
+  ${sal}${accCardsHTML(S.Y,m,sa,left)}<div class="stats"><div class="glass stat"><span>Spent</span><b>${fmt(sp)}</b></div><div class="glass stat"><span>Left</span><b class="${left<0?'neg':'pos'}">${fmt(left)}</b></div>
   <div class="glass stat"><span>Expenses</span><b>${es.length}</b></div><div class="glass stat"><span>Average per day</span><b>${fmt(sp/elapsed)}</b></div></div>
   <div class="two"><div class="glass card"><h2>Spending by category</h2>${ct.length?barChart(ct.map(c=>({l:c.g,v:c.t,c:colorOf(c.g),tip:`${c.g}: ${fmt(c.t)}`}))):'<div class="empty">No expenses yet.</div>'}
    ${ct.map(c=>{const pc=c.t/sp*100;return`<div class="lg" style="--c:${colorOf(c.g)};--w:${pc.toFixed(1)}%"><i></i><div class="t"><div><b>${esc(c.g)}</b><b>${fmt(c.t)}</b></div><div><span>${pc.toFixed(1)}%</span></div><div class="lb"><u></u></div></div></div>`}).join('')}</div>
@@ -609,7 +630,7 @@ function rowsHTML(){const q=S.q.toLowerCase(),es=monthEnts(S.M).filter(e=>(!S.ca
   const by={};es.forEach(e=>(by[e.grp]=by[e.grp]||[]).push(e));setTimeout(()=>{const t=$d('#tt');if(t)t.textContent=es.length+' · '+fmt(sum(es))});
   const gs=Object.keys(by).sort((a,b)=>sum(by[b])-sum(by[a]));if(!gs.length)return'<div class="glass card empty">No expenses found.</div>';
   return gs.map(g=>`<div class="glass card" style="border-left:5px solid ${colorOf(g)}"><div class="top" style="margin-bottom:6px"><span><span class="dot" style="--c:${colorOf(g)}"></span>${esc(g)}</span><span>${fmt(sum(by[g]))}</span></div><table class="tbl"><tbody>`+
-   by[g].sort((a,b)=>(b.date||'').localeCompare(a.date||'')||(b.ts||0)-(a.ts||0)).map(e=>`<tr><td style="width:84px;white-space:nowrap">${dLabel(e.date)}</td><td>${esc(e.item)}${e.note?`<br><small>${esc(e.note)}</small>`:''}</td><td class="n"><b>${fmt(e.amount)}</b></td><td class="n" style="white-space:nowrap;width:76px"><button class="x" data-a="edit" data-id="${e.id}">✎</button><button class="x" data-a="del" data-id="${e.id}">✕</button></td></tr>`).join('')+`</tbody></table></div>`).join('')}
+   by[g].sort((a,b)=>(b.date||'').localeCompare(a.date||'')||(b.ts||0)-(a.ts||0)).map(e=>`<tr><td style="width:84px;white-space:nowrap">${dLabel(e.date)}</td><td>${esc(e.item)}${(e.note||(e.acc&&accName(e.acc)))?`<br><small>${[esc(e.note||''),e.acc&&accName(e.acc)?'🏦 '+esc(accName(e.acc)):''].filter(Boolean).join(' · ')}</small>`:''}</td><td class="n"><b>${fmt(e.amount)}</b></td><td class="n" style="white-space:nowrap;width:76px"><button class="x" data-a="edit" data-id="${e.id}">✎</button><button class="x" data-a="del" data-id="${e.id}">✕</button></td></tr>`).join('')+`</tbody></table></div>`).join('')}
 function fillItems(){const g=$d('#eg');if(!g)return;const grp=S.L.find(x=>x.name==g.value);$d('#ei').innerHTML=((grp&&grp.items)||[]).map(i=>`<option>${esc(i)}</option>`).join('')+'<option value="__c">Type my own…</option>';$d('#ec').hidden=$d('#ei').value!='__c'}
 function render(){const v=$d('#dview'),st=v.scrollTop;
   v.innerHTML=S.ld?'<div class="empty" style="padding:60px 0;text-align:center">Loading…</div>':S.M?monthView():yearView();v.scrollTop=st;fillItems();
@@ -650,16 +671,22 @@ root.addEventListener('click',async ev=>{const b=ev.target.closest('[data-a]');i
   if(a=='m-'||a=='m+'){let m=S.M+(a=='m+'?1:-1),y=S.Y;if(m<1){m=12;y--}if(m>12){m=1;y++}return goMonth(m,y)}
   if(a=='lists')return listsModal();
   if(a=='sched')return openSched();
+  if(a=='accs')return openAcc();
+  if(a=='accuse'){const k=S.Y+'_'+S.M;if(SELM[k]==D.id)delete SELM[k];else SELM[k]=D.id;await saveLists();return render()}
   if(a=='sedit'){S.SE=true;render();return $d('#sal')?.focus()}
   if(a=='scancel'){S.SE=false;return render()}
   if(a=='sal'){const v=parseFloat($d('#sal').value)||0,y=S.Y,m=S.M;S.SE=false;return write(async()=>{await setDoc(ref("months",y+"_"+m),{y,m,salary:v});try{await runSchedules()}catch(e){}},'Salary saved')}
   if(a=='add'){const grp=$d('#eg').value;let item=$d('#ei').value;if(item=='__c')item=$d('#eic').value.trim();const amount=parseFloat($d('#ea').value),date=$d('#ed').value,note=$d('#en').value;
     if(!grp)return toast('Add a category in Manage lists first');if(!item)return toast('Choose or type an item');if(!(amount>=0))return toast('Enter an amount');if(!date)return toast('Choose a date');
-    if(await write(()=>addDoc(col("entries"),{y:S.Y,m:S.M,grp,item,amount,date,note,ts:Date.now()}),'Expense added')){$d('#eg').value=grp;fillItems();$d('#ed').value=date;$d('#ea').focus()}return}
+    const sa0=S.sal[S.M]||0,acc=activeAcc(S.Y,S.M,sa0,sa0-sum(monthEnts(S.M)));
+    if(acc){const A=ACC.find(x=>x.id==acc);if(amount>A.balance)return toast('Not enough balance in '+A.name)}
+    if(await write(async()=>{await addDoc(col("entries"),{y:S.Y,m:S.M,grp,item,amount,date,note,ts:Date.now(),...(acc?{acc}:{})});if(acc)await accAdjust(acc,-amount)},'Expense added')){$d('#eg').value=grp;fillItems();$d('#ed').value=date;$d('#ea').focus()}return}
   if(a=='edit')return editModal(D.id);
   if(a=='esave'){const amount=parseFloat($d('#me-a').value),item=$d('#me-i').value.trim(),date=$d('#me-d').value;if(!item||!(amount>=0)||!date)return toast('Fill item, amount and date');
-    const f={grp:$d('#me-g').value,item,amount,date,note:$d('#me-n').value,y:+date.slice(0,4),m:+date.slice(5,7)};closeModal();return write(()=>updateDoc(ref("entries",D.id),f),'Saved')}
-  if(a=='del'){if(await ask('Delete this expense?','Delete'))await write(()=>deleteDoc(ref("entries",D.id)),'Deleted');return}
+    const f={grp:$d('#me-g').value,item,amount,date,note:$d('#me-n').value,y:+date.slice(0,4),m:+date.slice(5,7)};const old=S.ents.find(x=>x.id==D.id),A=old&&ACC.find(x=>x.id==old.acc),diff=A?amount-old.amount:0;
+    if(A&&diff>A.balance)return toast('Not enough balance in '+A.name);
+    closeModal();return write(async()=>{await updateDoc(ref("entries",D.id),f);if(A)await accAdjust(A.id,-diff)},'Saved')}
+  if(a=='del'){if(await ask('Delete this expense?','Delete')){const old=S.ents.find(x=>x.id==D.id);await write(async()=>{await deleteDoc(ref("entries",D.id));if(old&&old.acc)await accAdjust(old.acc,old.amount)},'Deleted')}return}
   /* lists */
   if(a=='dg'){if(!confirm(`Delete category "${S.L[D.g].name}"? Past expenses stay.`))return;S.L.splice(D.g,1)}
   else if(a=='di')S.L[D.g].items.splice(D.i,1);
@@ -778,6 +805,14 @@ $('#sch').addEventListener('click',async ev=>{
   if(a=='edit'){SCHEDIT=b.dataset.id;renderSched();return $('#sch .sbox').scrollTo({top:0,behavior:'smooth'})}
   if(a=='cancel'){SCHEDIT=null;return renderSched()}
   if(a=='save')return saveSched();
+  if(a=='asave')return saveAcc();
+  if(a=='acancel'){ACCEDIT=null;return renderAcc()}
+  if(a=='aedit'){ACCEDIT=b.dataset.id;renderAcc();return $('#sch .sbox').scrollTo({top:0,behavior:'smooth'})}
+  if(a=='adel'){
+    if(!confirm('Delete this account? Past expenses stay.'))return;
+    try{const i=ACC.findIndex(x=>x.id==b.dataset.id);if(i>=0)ACC.splice(i,1);for(const k in SELM)if(SELM[k]==b.dataset.id)delete SELM[k];await saveLists();toast('Account deleted');renderAcc();refreshView()}
+    catch(err){toast(err.code||err.message||'Error')}
+    return}
   if(a=='del'){
     if(!confirm('Delete this schedule? Expenses already added stay.'))return;
     try{const i=SCH.findIndex(x=>x.id==b.dataset.id);if(i>=0)SCH.splice(i,1);if(SCHEDIT==b.dataset.id)SCHEDIT=null;await saveLists();toast('Schedule deleted');renderSched()}
@@ -791,6 +826,41 @@ let lastRun=0;
 document.addEventListener('visibilitychange',async()=>{
   if(document.hidden||!U||Date.now()-lastRun<60000)return;lastRun=Date.now();
   try{const n=await runSchedules();if(n){toast(n+' scheduled expense'+(n>1?'s':'')+' added');refreshView()}}catch(e){}});
+
+/* ---------- savings accounts ---------- */
+function accName(id){return (ACC.find(a=>a.id==id)||{}).name||''}
+function isLocked(sal,left){return sal>0&&left>0}
+function activeAcc(y,m,sal,left){if(isLocked(sal,left))return null;const id=SELM[y+'_'+m];return ACC.some(a=>a.id==id)?id:null}
+async function accAdjust(id,delta){const a=ACC.find(x=>x.id==id);if(!a||!delta)return;a.balance=Math.round((a.balance+delta)*100)/100;await saveLists()}
+function accCardsHTML(y,m,sal,left){
+  if(!ACC.length)return '';
+  const lk=isLocked(sal,left),sel=activeAcc(y,m,sal,left);
+  return `<div class="accs">`+ACC.map(a=>`<div class="glass acard${lk?' lk':''}${sel==a.id?' sel':''}"><div class="ai">🏦</div><div class="at"><b>${esc(a.name)}</b><span>Rs. ${fmt(a.balance)}</span></div>${lk?'<span class="lock">🔒</span>':`<button class="abtn" data-a="accuse" data-id="${a.id}">${sel==a.id?'✔ Using':'Use'}</button>`}</div>`).join('')+
+  (lk?'<div class="ahint">🔒 Locked until this month\'s salary is finished (Rs. 0 left).</div>':sel?'<div class="ahint">New expenses are taken from the account marked ✔.</div>':'<div class="ahint">Salary finished – pick an account to take new expenses from your savings.</div>')+'</div>';
+}
+let ACCEDIT=null;
+function openAcc(id){ACCEDIT=id||null;$('#sch').classList.add('on');renderAcc()}
+function renderAcc(){
+  const e=ACC.find(x=>x.id==ACCEDIT)||null;
+  $('#sch').innerHTML=`<div class="scrim" data-sa="close"></div><div class="glass sbox">
+  <div class="sh"><h2>🏦 Savings accounts</h2><button class="ib" data-sa="close" aria-label="Close">✕</button></div>
+  <div style="color:var(--mute);font-size:13px">Add your savings accounts. They stay locked while the month's salary lasts, and unlock when it reaches Rs. 0.</div>
+  <h3>${e?'Edit account':'Add account'}</h3>
+  <label>Bank name<input id="ac-n" placeholder="e.g. Commercial Bank" value="${e?esc(e.name):''}"></label>
+  <label>Balance (Rs.)<input id="ac-b" type="number" inputmode="decimal" min="0" step="0.01" placeholder="0.00" value="${e?e.balance:''}"></label>
+  <div class="row">${e?'<button class="btn alt" data-sa="acancel">Cancel edit</button>':''}<button class="btn pink" data-sa="asave">${e?'Update account':'Save account'}</button></div>
+  <h3>Your accounts</h3><div>${ACC.map(a=>`<div class="sc" style="--c:var(--g2)"><div><b>${esc(a.name)}</b><small>Rs. ${fmt(a.balance)}</small></div><button class="ib" data-sa="aedit" data-id="${a.id}" aria-label="Edit">✎</button><button class="ib" data-sa="adel" data-id="${a.id}" aria-label="Delete">✕</button></div>`).join('')||'<div class="empty">No accounts yet.</div>'}</div></div>`;
+}
+async function saveAcc(){
+  const name=sq('#ac-n').value.trim(),raw=sq('#ac-b').value,bal=parseFloat(raw);
+  if(!name)return toast('Enter the bank name');
+  if(raw===''||!(bal>=0))return toast('Enter the balance');
+  try{
+    const e=ACC.find(x=>x.id==ACCEDIT);
+    if(e){e.name=name;e.balance=bal}else ACC.push({id:Date.now().toString(36)+Math.random().toString(36).slice(2,5),name,balance:bal});
+    await saveLists();ACCEDIT=null;toast('Account saved');renderAcc();refreshView();
+  }catch(err){toast(!navigator.onLine?"No internet – not saved":(err.code||err.message||'Error'))}
+}
 
 if('serviceWorker' in navigator)navigator.serviceWorker.register('sw.js').catch(()=>{});
 </script></body></html>
