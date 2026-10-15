@@ -173,7 +173,12 @@ input[type=color].cc::-moz-color-swatch{border:0;border-radius:50%}
 #sch .sh{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:12px}
 #sch .sh h2{margin:0;font-size:18px}
 #sch h3{margin:14px 0 8px;font-size:15px}
-#sch .s2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+#sch .s2{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:8px}
+#sch .s2>label{min-width:0}
+#sch input[type=date]{min-width:0;max-width:100%;height:46px;padding:0 8px;text-align:left;-webkit-appearance:none;appearance:none}
+#sch input[type=date]::-webkit-date-and-time-value{text-align:left;min-width:0}
+#sch input[type=date]::-webkit-calendar-picker-indicator{margin:0 0 0 2px;padding:0}
+@media(max-width:480px){#sch .sbox{width:92vw;padding:14px}#sch .s2{gap:6px}#sch input[type=date]{padding:0 6px;font-size:15px}}
 #sch .shint{font-size:13px;color:var(--mute);margin:-2px 0 10px}
 #sch .sc{display:flex;align-items:center;gap:8px;padding:10px 12px;border-radius:14px;border:1px solid var(--line);border-left:5px solid var(--c);background:var(--grp);margin-bottom:8px}
 #sch .sc>div{flex:1;min-width:0}#sch .sc small{display:block;color:var(--mute)}
@@ -726,7 +731,6 @@ function renderSched(){
   $('#sch').innerHTML=`<div class="scrim" data-sa="close"></div><div class="glass sbox">
   <div class="sh"><h2>📅 Schedule your expense</h2><button class="ib" data-sa="close" aria-label="Close">✕</button></div>
   <div style="color:var(--mute);font-size:13px">Repeats every month on the chosen day. It is added to your list automatically once that day arrives and that month's salary is saved.</div>
-  <div style="margin-top:12px">${SCH.map(s=>`<div class="sc" style="--c:${colorOf(s.grp)}"><div><b>${esc(s.item)}</b> · Rs. ${fmt(s.amount)}<small>${esc(s.grp)} · every month on the ${ordn(s.day)}</small><small>${dFull(s.from)} → ${dFull(s.to)} · ${s.done.length} added</small></div><button class="ib" data-sa="edit" data-id="${s.id}" aria-label="Edit">✎</button><button class="ib" data-sa="del" data-id="${s.id}" aria-label="Delete">✕</button></div>`).join('')||'<div class="empty">No scheduled expenses yet.</div>'}</div>
   <h3>${e?'Edit scheduled expense':'New scheduled expense'}</h3>
   <div class="s2"><label>From<input id="sf-f" type="date" value="${from}"></label><label>To<input id="sf-t" type="date" value="${to}"></label></div>
   <label>Category<select id="sf-g">${gs.map(g=>`<option${e&&e.grp==g?' selected':''}>${esc(g)}</option>`).join('')}</select></label>
@@ -734,7 +738,8 @@ function renderSched(){
   <div class="s2"><label>Amount (Rs.)<input id="sf-a" type="number" inputmode="decimal" min="0" step="0.01" placeholder="0.00" value="${e?e.amount:''}"></label><label>Pay date<input id="sf-d" type="date" value="${pay}"></label></div>
   <div class="shint" id="sf-h"></div>
   <label>Note<input id="sf-n" placeholder="Optional" value="${e?esc(e.note||''):''}"></label>
-  <div class="row">${e?'<button class="btn alt" data-sa="cancel">Cancel edit</button>':''}<button class="btn pink" data-sa="save">${e?'Update schedule':'Save schedule'}</button></div></div>`;
+  <div class="row">${e?'<button class="btn alt" data-sa="cancel">Cancel edit</button>':''}<button class="btn pink" data-sa="save">${e?'Update schedule':'Save schedule'}</button></div>
+  <h3>Your scheduled expenses</h3><div>${SCH.map(s=>`<div class="sc" style="--c:${colorOf(s.grp)}"><div><b>${esc(s.item)}</b> · Rs. ${fmt(s.amount)}<small>${esc(s.grp)} · every month on the ${ordn(s.day)}</small><small>${dFull(s.from)} → ${dFull(s.to)} · ${s.done.length} added</small></div><button class="ib" data-sa="edit" data-id="${s.id}" aria-label="Edit">✎</button><button class="ib" data-sa="del" data-id="${s.id}" aria-label="Delete">✕</button></div>`).join('')||'<div class="empty">No scheduled expenses yet.</div>'}</div></div>`;
   schItems(e?e.item:'');schHint();
 }
 function schItems(sel){
@@ -770,7 +775,7 @@ async function saveSched(){
 $('#sch').addEventListener('click',async ev=>{
   const b=ev.target.closest('[data-sa]');if(!b)return;const a=b.dataset.sa;
   if(a=='close')return closeSched();
-  if(a=='edit'){SCHEDIT=b.dataset.id;renderSched();return $('#sch .sbox').scrollTo({top:9999,behavior:'smooth'})}
+  if(a=='edit'){SCHEDIT=b.dataset.id;renderSched();return $('#sch .sbox').scrollTo({top:0,behavior:'smooth'})}
   if(a=='cancel'){SCHEDIT=null;return renderSched()}
   if(a=='save')return saveSched();
   if(a=='del'){
