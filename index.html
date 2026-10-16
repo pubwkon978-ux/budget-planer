@@ -286,7 +286,7 @@ html.desk #toast{z-index:50}
 #dk .afr label{flex:1 1 0;min-width:0;margin-bottom:0}
 #dk .afr [hidden]{display:none!important}
 #dk .afr .btn{flex:none;white-space:nowrap;padding:12px 22px;height:46px}
-@container (min-width:1000px){#dk .afr{flex-direction:row;align-items:flex-end}#dk .afr .ar1{flex:3}#dk .afr .ar2{flex:2.5}}
+@container (min-width:1000px){#dk .afr{flex-direction:row;align-items:flex-end}#dk .afr .ar1{flex:3}#dk .afr .ar2{flex:3.8}}
 #dk .tools{display:flex;gap:8px;margin-bottom:10px}
 #dk .tools input,#dk .tools select{margin:0;padding:9px 11px}
 #dk .tools input{flex:2}
@@ -359,8 +359,8 @@ const auth=getAuth(app),fs=getFirestore(app);
 const $=s=>document.querySelector(s);
 const MN=["January","February","March","April","May","June","July","August","September","October","November","December"];
 const COL=["#ff6bb5","#ff8a5c","#ffd166","#a3e635","#3ff2a5","#22d3ee","#5ab0ff","#8b9cff","#c084fc","#f472b6","#fb923c","#34d399"];
-const DEFAULTS=[["Bills",["Electricity","Water","Internet","Phone"]],["Loans",["Bank loan","Leasing","Credit card"]],["Food",["Groceries","Eating out"]],["Transport",["Fuel","Bus / Train"]],["Savings",["Savings","Fixed deposit"]],["Other",["Medical","Gifts"]]].map(([name,items])=>({name,items}));
-let SE=false,OPEN=false,U=null,Y=new Date().getFullYear(),M=null,L=[],SCH=[],ACC=[],SELM={},CURM={sal:0,left:0};
+const DEFAULTS=[["Bills",["Electricity","Water","Internet","Phone"]],["Loans",["Bank loan","Leasing","Credit card"]],["Food",["Groceries","Eating out"]],["Transport",["Fuel","Bus / Train"]],["Savings",[]],["Other",["Medical","Gifts"]]].map(([name,items])=>({name,items}));
+let SE=false,OPEN=false,U=null,Y=new Date().getFullYear(),M=null,L=[],SCH=[],ACC=[];
 const fmt=n=>(+n||0).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
 const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const THEMES=[["purple","Purple","linear-gradient(135deg,#ff3d9a,#8b5cf6,#22d3ee)","#1b1038"],["light","White","linear-gradient(135deg,#fff,#e3d4ff,#bfe3ff)","#f3e8ff"],["green","Black & Green","linear-gradient(135deg,#000,#00b36b,#00ff88)","#000000"],["black","Dark","linear-gradient(135deg,#000,#2a2a2a,#555)","#000000"]];
@@ -398,11 +398,12 @@ onAuthStateChanged(auth,async u=>{
 /* ---------- data ---------- */
 async function loadLists(){
   const s=await getDoc(ref("meta","lists"));
-  if(s.exists()){const x=s.data();L=x.groups;SCH=x.schedules||[];ACC=x.accounts||[];SELM=x.sel||{}}
-  else{L=DEFAULTS;SCH=[];ACC=[];SELM={}}
+  if(s.exists()){const x=s.data();L=x.groups;SCH=x.schedules||[];ACC=x.accounts||[]}
+  else{L=DEFAULTS;SCH=[];ACC=[]}
   if(L.some(g=>!g.color)){L.forEach((g,i)=>{if(!g.color)g.color=CC[i%CC.length]});await saveLists()}
+  {let ch=false;L.forEach(g=>{if(isSav(g.name)&&g.items&&g.items.length){g.items=[];ch=true}});if(ch)await saveLists()}
 }
-const saveLists=()=>setDoc(ref("meta","lists"),{groups:L,schedules:SCH,accounts:ACC,sel:SELM});
+const saveLists=()=>setDoc(ref("meta","lists"),{groups:L,schedules:SCH,accounts:ACC});
 
 async function monthData(y,m){
   const s=await getDoc(ref("months",y+"_"+m));
@@ -417,7 +418,7 @@ async function showYear(){
   const out={};for(let i=1;i<=12;i++)out[i]={salary:0,spent:0};
   const [ms,es]=await Promise.all([getDocs(query(col("months"),where("y","==",Y))),getDocs(query(col("entries"),where("y","==",Y)))]);
   ms.forEach(d=>{const x=d.data();out[x.m].salary=x.salary});
-  es.forEach(d=>{const x=d.data();out[x.m].spent+=x.amount});
+  es.forEach(d=>{const x=d.data();if(!x.acc)out[x.m].spent+=x.amount});
   const now=new Date();
   $('#view').innerHTML=`<div class="bar"><button class="ib" data-a="y-" aria-label="Previous year">‹</button><h1>${Y}</h1><button class="ib" data-a="y+" aria-label="Next year">›</button></div><div class="months">`+
   MN.map((n,i)=>{const s=out[i+1],raw=s.salary?s.spent/s.salary*100:0,cur=now.getFullYear()==Y&&now.getMonth()==i;
@@ -426,7 +427,7 @@ async function showYear(){
 
 async function showMonth(m){
   M=m;const d=await monthData(Y,m);
-  const spent=d.entries.reduce((a,e)=>a+e.amount,0),left=d.salary-spent,by={};CURM={sal:d.salary,left};
+  const spent=d.entries.reduce((a,e)=>a+e.amount,0),sp=d.entries.reduce((a,e)=>a+(e.acc?0:e.amount),0),left=d.salary-sp,by={};
   d.entries.forEach(e=>(by[e.grp]=by[e.grp]||[]).push(e));
   const now=new Date(),dMin=`${Y}-${pad(m)}-01`,
     dDef=(now.getFullYear()==Y&&now.getMonth()+1==m)?`${Y}-${pad(m)}-${pad(now.getDate())}`:dMin;
@@ -442,18 +443,19 @@ async function showMonth(m){
    ?`<div class="glass card salcard${lp<20?' low':''}" style="--w:${lp.toFixed(1)}%">${lp>0?'<div class="fill"></div>':''}<button class="ib edit" data-a="sedit" aria-label="Edit salary">✎</button><div class="sl">${MN[m-1]} salary</div><div class="sv">Rs. ${fmt(d.salary)}</div><div class="sf">${lp<=0?'Fully spent':fmt(left)+' left · '+lp.toFixed(0)+'%'}</div></div>`
    :`<div class="glass card"><h2>Salary</h2><label>Salary for ${MN[m-1]} (Rs.)<input id="sal" type="number" inputmode="decimal" min="0" step="0.01" value="${d.salary||''}" placeholder="0.00"></label><button class="btn" data-a="sal">Save salary</button>${d.salary?'<button class="btn alt" data-a="scancel" style="margin-top:8px">Cancel</button>':''}</div>`;
   const rows=Object.keys(by).map(g=>`<div class="glass card ecard" style="--c:${colorOf(g)}"><div class="eh"><span><i></i><span>${esc(g)}</span></span><span>${fmt(by[g].reduce((a,e)=>a+e.amount,0))}</span></div>`+
-   by[g].map(e=>{const sub=[dLabel(e.date),esc(e.note||''),e.acc&&accName(e.acc)?'🏦 '+esc(accName(e.acc)):''].filter(Boolean).join(' · ');return `<div class="er"><div>${esc(e.item)}${sub?`<small>${sub}</small>`:''}</div><button class="a" data-a="edit" data-id="${e.id}" data-amt="${e.amount}" data-acc="${e.acc||''}">${fmt(e.amount)}</button><button class="x" data-a="del" data-id="${e.id}" data-amt="${e.amount}" data-acc="${e.acc||''}" aria-label="Delete">✕</button></div>`}).join('')+`</div>`).join('');
+   by[g].map(e=>{const sub=[dLabel(e.date),esc(e.note||''),e.acc&&accName(e.acc)?'from 🏦 '+esc(accName(e.acc)):''].filter(Boolean).join(' · ');return `<div class="er"><div>${esc(e.item)}${sub?`<small>${sub}</small>`:''}</div><button class="a" data-a="edit" data-id="${e.id}" data-amt="${e.amount}" data-acc="${e.acc||''}" data-to="${e.to||''}">${fmt(e.amount)}</button><button class="x" data-a="del" data-id="${e.id}" data-amt="${e.amount}" data-acc="${e.acc||''}" data-to="${e.to||''}" aria-label="Delete">✕</button></div>`}).join('')+`</div>`).join('');
   $('#view').innerHTML=`<div class="bar"><button class="ib" data-a="m-" aria-label="Previous month">‹</button><h1>${MN[m-1]} ${Y}</h1><button class="ib" data-a="m+" aria-label="Next month">›</button></div>
   <button class="btn alt" data-a="year" style="margin-bottom:14px">All months</button>
   ${salHTML}
-  ${accCardsHTML(Y,m,d.salary,left)}
-  <div class="sum"><div class="glass"><span>Spent</span><b>${fmt(spent)}</b></div><div class="glass"><span>Left</span><b class="${left<0?'neg':'pos'}">${fmt(left)}</b></div></div>
+  ${accCardsHTML()}
+  <div class="sum"><div class="glass"><span>Spent</span><b>${fmt(sp)}</b></div><div class="glass"><span>Left</span><b class="${left<0?'neg':'pos'}">${fmt(left)}</b></div></div>
   ${chartHTML}
   <div class="acc${OPEN?' open':''}"><button class="glass accb" data-a="toggle" aria-expanded="${OPEN}"><span>＋ Add expense</span><i>▾</i></button><div class="accbody"><div class="accin"><div class="glass card">
    <label>Category<select id="eg">${L.map(g=>`<option>${esc(g.name)}</option>`).join('')}</select></label>
    <label>Item<select id="ei"></select></label>
    <label id="ec" hidden>Your own item<input id="eic" placeholder="Type a name"></label>
    <label>Amount (Rs.)<input id="ea" type="number" inputmode="decimal" min="0" step="0.01" placeholder="0.00"></label>
+   <label>Wallet<select id="ew">${walletOpts()}</select></label>
    <label>Date<input id="ed" type="date" value="${dDef}"></label>
    <label>Note<input id="en" placeholder="Optional"></label>
    <button class="btn pink" data-a="add">Add expense</button></div></div></div></div>
@@ -461,8 +463,8 @@ async function showMonth(m){
   fillItems();if(SE&&$('#sal'))$('#sal').focus();
 }
 function fillItems(){
-  const g=$('#eg');if(!g)return;const grp=L.find(x=>x.name==g.value);
-  $('#ei').innerHTML=((grp&&grp.items)||[]).map(i=>`<option>${esc(i)}</option>`).join('')+'<option value="__c">Type my own…</option>';
+  const g=$('#eg');if(!g)return;
+  $('#ei').innerHTML=itemOpts(g.value);
   $('#ec').hidden=$('#ei').value!='__c';
 }
 document.addEventListener('change',async e=>{if(e.target.closest('#dk'))return;if(e.target.classList.contains('cc')&&e.target.dataset.g!==undefined){L[e.target.dataset.g].color=e.target.value;const gb=e.target.closest('.gacc')?.querySelector('.gb');if(gb)gb.style.setProperty('--c',e.target.value);try{await saveLists();toast('Colour saved')}catch(err){toast('Error: '+(err.code||err.message))}return}
@@ -479,8 +481,8 @@ function drawer(){
   <div style="color:var(--mute);font-size:13px;margin-top:12px">These feed the dropdowns when you add an expense.</div>`+
   L.map((g,gi)=>`<div class="gacc${OG.has(g.name)?' open':''}" data-g="${gi}"><button class="gb" style="--c:${colorOf(g.name)}" data-a="tg" data-g="${gi}" aria-expanded="${OG.has(g.name)}"><span>${esc(g.name)}</span><i>▾</i></button><div class="gbody"><div class="gin"><div class="grp">
    <div class="top"><label class="crow"><input type="color" class="cc" data-g="${gi}" value="${colorOf(g.name)}" aria-label="Category colour">Colour</label><button class="x" data-a="dg" data-g="${gi}">Delete</button></div>
-   <div class="chips">${g.items.map((it,ii)=>`<span class="chip">${esc(it)} <button class="x" data-a="di" data-g="${gi}" data-i="${ii}" aria-label="Remove">✕</button></span>`).join('')||'<span class="empty">No items yet</span>'}</div>
-   <div class="add"><input placeholder="New item" data-in="${gi}"><button class="btn" data-a="ai" data-g="${gi}">Add</button></div></div></div></div></div>`).join('')+
+   ${isSav(g.name)?'<div class="empty">Items come from your bank accounts (🏦 Your savings).</div>':`<div class="chips">${g.items.map((it,ii)=>`<span class="chip">${esc(it)} <button class="x" data-a="di" data-g="${gi}" data-i="${ii}" aria-label="Remove">✕</button></span>`).join('')||'<span class="empty">No items yet</span>'}</div>
+   <div class="add"><input placeholder="New item" data-in="${gi}"><button class="btn" data-a="ai" data-g="${gi}">Add</button></div>`}</div></div></div></div>`).join('')+
   `<div class="grp"><div class="top">New category</div><div class="add" style="margin-top:8px;align-items:center"><input type="color" class="cc" id="ngc" value="${CC.find(c=>!L.some(g=>g.color==c))||CC[L.length%CC.length]}" aria-label="Colour"><input id="ng" placeholder="e.g. Insurance"><button class="btn" data-a="ag">Add</button></div></div>`;
 }
 const tog=o=>document.body.classList.toggle('open',o);
@@ -497,7 +499,6 @@ document.addEventListener('click',async e=>{
   if(a=='back')return closeDrawer();
   if(a=='sched'){tog(false);return openSched()}
   if(a=='accs'){tog(false);return openAcc()}
-  if(a=='accuse'){const k=Y+'_'+M;if(SELM[k]==D.id)delete SELM[k];else SELM[k]=D.id;await saveLists();return showMonth(M)}
   if(a=='theme'){applyTheme(D.t);return drawer()}
   if(a=='logout'){tog(false);await signOut(auth);return}
   if(a=='y-'){Y--;return showYear()} if(a=='y+'){Y++;return showYear()}
@@ -509,19 +510,24 @@ document.addEventListener('click',async e=>{
   if(a=='sedit'){SE=true;return showMonth(M)}
   if(a=='scancel'){SE=false;return showMonth(M)}
   if(a=='add'){
-    const grp=$('#eg').value;let item=$('#ei').value;if(item=='__c')item=$('#eic').value.trim();
+    const grp=$('#eg').value,wid=$('#ew').value;let item=$('#ei').value,to=null;
     const amount=parseFloat($('#ea').value),date=$('#ed').value;
     if(!grp)return toast('Add a category in the menu first');
+    if(isSav(grp)){const T=ACC.find(x=>x.id==item);if(!T)return toast('Add a bank account in "Your savings" first');if(wid&&wid==T.id)return toast('Choose a different wallet');item=T.name;to=T.id}
+    else if(item=='__c')item=$('#eic').value.trim();
     if(!item)return toast('Choose or type an item');
     if(!(amount>=0))return toast('Enter an amount');
     if(!date)return toast('Choose a date');
-    const acc=activeAcc(Y,M,CURM.sal,CURM.left);
-    if(acc){const A=ACC.find(x=>x.id==acc);if(amount>A.balance)return toast('Not enough balance in '+A.name)}
-    await addDoc(col("entries"),{y:Y,m:M,grp,item,amount,date,note:$('#en').value,ts:Date.now(),...(acc?{acc}:{})});
-    if(acc)await accAdjust(acc,-amount);
-    toast('Expense added');await showMonth(M);$('#eg').value=grp;fillItems();$('#ed').value=date;return}
-  if(a=='edit'){const v=prompt('New amount',D.amt);if(v===null)return;const n=parseFloat(v);if(!(n>=0))return toast('Enter a valid amount');const A=ACC.find(x=>x.id==D.acc),diff=n-(+D.amt||0);if(A&&diff>A.balance)return toast('Not enough balance in '+A.name);await updateDoc(ref("entries",D.id),{amount:n});if(A)await accAdjust(A.id,-diff);return showMonth(M)}
-  if(a=='del'){if(!confirm('Delete this expense?'))return;await deleteDoc(ref("entries",D.id));if(D.acc)await accAdjust(D.acc,+D.amt||0);return showMonth(M)}
+    const W=ACC.find(x=>x.id==wid);if(W&&amount>W.balance)return toast('Not enough balance in '+W.name);
+    await addDoc(col("entries"),{y:Y,m:M,grp,item,amount,date,note:$('#en').value,ts:Date.now(),...(W?{acc:W.id}:{}),...(to?{to}:{})});
+    await accApply([[W&&W.id,-amount],[to,amount]]);
+    toast('Expense added');await showMonth(M);$('#eg').value=grp;fillItems();$('#ew').value=wid;$('#ed').value=date;return}
+  if(a=='edit'){const v=prompt('New amount',D.amt);if(v===null)return;const n=parseFloat(v);if(!(n>=0))return toast('Enter a valid amount');
+    const A=ACC.find(x=>x.id==D.acc),T=ACC.find(x=>x.id==D.to),diff=n-(+D.amt||0);
+    if(A&&diff>A.balance)return toast('Not enough balance in '+A.name);if(T&&T.balance+diff<0)return toast('Balance too low in '+T.name);
+    await updateDoc(ref("entries",D.id),{amount:n});await accApply([[D.acc,-diff],[D.to,diff]]);return showMonth(M)}
+  if(a=='del'){const amt=+D.amt||0,T=ACC.find(x=>x.id==D.to);if(T&&T.balance<amt)return toast('Balance too low in '+T.name+' to remove this deposit');
+    if(!confirm('Delete this expense?'))return;await deleteDoc(ref("entries",D.id));await accApply([[D.acc,amt],[D.to,-amt]]);return showMonth(M)}
   if(a=='tg'){const n=L[D.g].name,w=b.closest('.gacc'),o=!OG.has(n);o?OG.add(n):OG.delete(n);w.classList.toggle('open',o);b.setAttribute('aria-expanded',o);return}
   /* list management */
   if(a=='dg'){if(!confirm(`Delete category "${L[D.g].name}"? Past expenses stay.`))return;L.splice(D.g,1)}
@@ -600,7 +606,7 @@ function mini(es){const ct=catTotals(es).slice(0,8);
 
 /* ----- views ----- */
 function yearView(){const now=new Date();
-  const rows=MN.map((n,i)=>{const m=i+1,es=monthEnts(m);return{m,n,es,sp:sum(es),sa:S.sal[m]||0}});
+  const rows=MN.map((n,i)=>{const m=i+1,es=monthEnts(m);return{m,n,es,sp:sum(es.filter(e=>!e.acc)),sa:S.sal[m]||0}});
   const tS=rows.reduce((a,r)=>a+r.sa,0),tP=rows.reduce((a,r)=>a+r.sp,0),act=rows.filter(r=>r.sp>0).length;
   return`<div class="bar2"><h1>${S.Y} overview</h1></div>
   <div class="stats"><div class="glass stat"><span>Total salary</span><b>Rs. ${fmt(tS)}</b></div><div class="glass stat"><span>Total spent</span><b>Rs. ${fmt(tP)}</b></div>
@@ -608,30 +614,30 @@ function yearView(){const now=new Date();
   <div class="glass card"><h2>Salary vs spent – every month</h2><div class="leg"><span><i style="background:var(--g2)"></i>Salary</span><span><i style="background:var(--p1)"></i>Spent</span><span><i style="background:var(--red)"></i>Spent more than salary</span></div>${yearChart(rows)}</div>
   <div class="months">`+rows.map(r=>{const raw=r.sa?r.sp/r.sa*100:0,cur=now.getFullYear()==S.Y&&now.getMonth()+1==r.m;
     return`<button class="glass mt${cur?' cur':''}" style="--c:${COL[r.m-1]}" data-a="month" data-m="${r.m}"><div class="mh"><b>${r.n}</b><span>${r.sa?'Rs. '+fmt(r.sa):'No salary yet'}</span></div>${mini(r.es)}<i class="pb"><u class="${raw>100?'over':''}" style="width:${Math.min(100,raw)}%"></u></i><div class="ms"><span>Spent ${fmt(r.sp)}</span><span>Left ${fmt(r.sa-r.sp)}</span></div></button>`}).join('')+'</div>'}
-function monthView(){const m=S.M,es=monthEnts(m),sp=sum(es),sa=S.sal[m]||0,left=sa-sp,lp=sa>0?Math.max(0,Math.min(100,left/sa*100)):0,now=new Date(),days=dim(S.Y,m);
+function monthView(){const m=S.M,es=monthEnts(m),spAll=sum(es),sp=sum(es.filter(e=>!e.acc)),sa=S.sal[m]||0,left=sa-sp,lp=sa>0?Math.max(0,Math.min(100,left/sa*100)):0,now=new Date(),days=dim(S.Y,m);
   const cur=now.getFullYear()==S.Y&&now.getMonth()+1==m,elapsed=cur?now.getDate():days,ct=catTotals(es),daily=Array(days+1).fill(0);es.forEach(e=>{const d=+(e.date||'').split('-')[2];if(d>=1&&d<=days)daily[d]+=e.amount});
   const dDef=cur?`${S.Y}-${pad(m)}-${pad(now.getDate())}`:`${S.Y}-${pad(m)}-01`;
   const sal=(sa&&!S.SE)?`<div class="glass salcard${lp<20?' low':''}" style="--w:${lp.toFixed(1)}%">${lp>0?'<div class="fill"></div>':''}<button class="ib edit" data-a="sedit">✎</button><div class="sl">${MN[m-1]} salary</div><div class="sv">Rs. ${fmt(sa)}</div><div class="sf">${lp<=0?'Fully spent':fmt(left)+' left · '+lp.toFixed(0)+'%'}</div></div>`
    :`<div class="glass card"><h2>Salary for ${MN[m-1]} (Rs.)</h2><input id="sal" type="number" min="0" step="0.01" value="${sa||''}" placeholder="0.00"><div class="row" style="margin-top:10px"><button class="btn" data-a="sal">Save salary</button>${sa?'<button class="btn alt" data-a="scancel">Cancel</button>':''}</div></div>`;
   return`<div class="bar2"><button class="ib" data-a="m-">‹</button><h1>${MN[m-1]} ${S.Y}</h1><button class="ib" data-a="m+">›</button><div class="sp"></div>
    <button class="btn alt" data-a="year">All months</button></div>
-  ${sal}${accCardsHTML(S.Y,m,sa,left)}<div class="stats"><div class="glass stat"><span>Spent</span><b>${fmt(sp)}</b></div><div class="glass stat"><span>Left</span><b class="${left<0?'neg':'pos'}">${fmt(left)}</b></div>
+  ${sal}${accCardsHTML()}<div class="stats"><div class="glass stat"><span>Spent</span><b>${fmt(sp)}</b></div><div class="glass stat"><span>Left</span><b class="${left<0?'neg':'pos'}">${fmt(left)}</b></div>
   <div class="glass stat"><span>Expenses</span><b>${es.length}</b></div><div class="glass stat"><span>Average per day</span><b>${fmt(sp/elapsed)}</b></div></div>
   <div class="two"><div class="glass card"><h2>Spending by category</h2>${ct.length?barChart(ct.map(c=>({l:c.g,v:c.t,c:colorOf(c.g),tip:`${c.g}: ${fmt(c.t)}`}))):'<div class="empty">No expenses yet.</div>'}
-   ${ct.map(c=>{const pc=c.t/sp*100;return`<div class="lg" style="--c:${colorOf(c.g)};--w:${pc.toFixed(1)}%"><i></i><div class="t"><div><b>${esc(c.g)}</b><b>${fmt(c.t)}</b></div><div><span>${pc.toFixed(1)}%</span></div><div class="lb"><u></u></div></div></div>`}).join('')}</div>
-   <div class="glass card"><h2>Spending by day</h2>${sp>0?barChart(daily.slice(1).map((v,i)=>({l:(i+1==1||(i+1)%5==0)?String(i+1):'',v,c:'#5ab0ff',tip:`${i+1} ${MN[m-1]}: ${fmt(v)}`})),{vals:false}):'<div class="empty">No expenses yet.</div>'}</div></div>
+   ${ct.map(c=>{const pc=c.t/spAll*100;return`<div class="lg" style="--c:${colorOf(c.g)};--w:${pc.toFixed(1)}%"><i></i><div class="t"><div><b>${esc(c.g)}</b><b>${fmt(c.t)}</b></div><div><span>${pc.toFixed(1)}%</span></div><div class="lb"><u></u></div></div></div>`}).join('')}</div>
+   <div class="glass card"><h2>Spending by day</h2>${spAll>0?barChart(daily.slice(1).map((v,i)=>({l:(i+1==1||(i+1)%5==0)?String(i+1):'',v,c:'#5ab0ff',tip:`${i+1} ${MN[m-1]}: ${fmt(v)}`})),{vals:false}):'<div class="empty">No expenses yet.</div>'}</div></div>
   <div class="glass card" id="addf"><h2>＋ Add expense</h2><div class="afr"><div class="ar1">
    <label>Category<select id="eg">${S.L.map(g=>`<option>${esc(g.name)}</option>`).join('')}</select></label><label>Item<select id="ei"></select></label>
    <label id="ec" hidden>Your own item<input id="eic" placeholder="Type a name"></label><label>Amount (Rs.)<input id="ea" type="number" min="0" step="0.01" placeholder="0.00"></label></div>
-   <div class="ar2"><label>Date<input id="ed" type="date" value="${dDef}"></label><label>Note<input id="en" placeholder="Optional"></label><button class="btn pink" data-a="add">Add expense</button></div></div></div>
+   <div class="ar2"><label>Wallet<select id="ew">${walletOpts()}</select></label><label>Date<input id="ed" type="date" value="${dDef}"></label><label>Note<input id="en" placeholder="Optional"></label><button class="btn pink" data-a="add">Add expense</button></div></div></div>
   <div class="glass card"><div class="tools" style="margin:0"><input id="q" placeholder="Search expenses…  ( / )" value="${esc(S.q)}"><select id="fc"><option value="">All categories</option>${S.L.map(g=>`<option${S.cat==g.name?' selected':''}>${esc(g.name)}</option>`).join('')}</select><b id="tt" style="align-self:center;white-space:nowrap"></b></div></div>
   <div id="tb">${rowsHTML()}</div>`}
 function rowsHTML(){const q=S.q.toLowerCase(),es=monthEnts(S.M).filter(e=>(!S.cat||e.grp==S.cat)&&(!q||(e.item+' '+(e.note||'')+' '+e.grp).toLowerCase().includes(q)));
   const by={};es.forEach(e=>(by[e.grp]=by[e.grp]||[]).push(e));setTimeout(()=>{const t=$d('#tt');if(t)t.textContent=es.length+' · '+fmt(sum(es))});
   const gs=Object.keys(by).sort((a,b)=>sum(by[b])-sum(by[a]));if(!gs.length)return'<div class="glass card empty">No expenses found.</div>';
   return gs.map(g=>`<div class="glass card" style="border-left:5px solid ${colorOf(g)}"><div class="top" style="margin-bottom:6px"><span><span class="dot" style="--c:${colorOf(g)}"></span>${esc(g)}</span><span>${fmt(sum(by[g]))}</span></div><table class="tbl"><tbody>`+
-   by[g].sort((a,b)=>(b.date||'').localeCompare(a.date||'')||(b.ts||0)-(a.ts||0)).map(e=>`<tr><td style="width:84px;white-space:nowrap">${dLabel(e.date)}</td><td>${esc(e.item)}${(e.note||(e.acc&&accName(e.acc)))?`<br><small>${[esc(e.note||''),e.acc&&accName(e.acc)?'🏦 '+esc(accName(e.acc)):''].filter(Boolean).join(' · ')}</small>`:''}</td><td class="n"><b>${fmt(e.amount)}</b></td><td class="n" style="white-space:nowrap;width:76px"><button class="x" data-a="edit" data-id="${e.id}">✎</button><button class="x" data-a="del" data-id="${e.id}">✕</button></td></tr>`).join('')+`</tbody></table></div>`).join('')}
-function fillItems(){const g=$d('#eg');if(!g)return;const grp=S.L.find(x=>x.name==g.value);$d('#ei').innerHTML=((grp&&grp.items)||[]).map(i=>`<option>${esc(i)}</option>`).join('')+'<option value="__c">Type my own…</option>';$d('#ec').hidden=$d('#ei').value!='__c'}
+   by[g].sort((a,b)=>(b.date||'').localeCompare(a.date||'')||(b.ts||0)-(a.ts||0)).map(e=>`<tr><td style="width:84px;white-space:nowrap">${dLabel(e.date)}</td><td>${esc(e.item)}${(e.note||(e.acc&&accName(e.acc)))?`<br><small>${[esc(e.note||''),e.acc&&accName(e.acc)?'from 🏦 '+esc(accName(e.acc)):''].filter(Boolean).join(' · ')}</small>`:''}</td><td class="n"><b>${fmt(e.amount)}</b></td><td class="n" style="white-space:nowrap;width:76px"><button class="x" data-a="edit" data-id="${e.id}">✎</button><button class="x" data-a="del" data-id="${e.id}">✕</button></td></tr>`).join('')+`</tbody></table></div>`).join('')}
+function fillItems(){const g=$d('#eg');if(!g)return;$d('#ei').innerHTML=itemOpts(g.value);$d('#ec').hidden=$d('#ei').value!='__c'}
 function render(){const v=$d('#dview'),st=v.scrollTop;
   v.innerHTML=S.ld?'<div class="empty" style="padding:60px 0;text-align:center">Loading…</div>':S.M?monthView():yearView();v.scrollTop=st;fillItems();
   $d('#ylab').textContent=S.Y;$d('#user').textContent=U?.email||'';$d('#nv-home').classList.toggle('on',!S.M);
@@ -643,14 +649,14 @@ function closeModal(){$d('#modal').classList.remove('on');$d('#modal').innerHTML
 function ask(msg,ok='Yes'){return new Promise(r=>{modal(`<p style="margin:0 0 18px">${esc(msg)}</p><div class="row"><button class="btn alt" data-a="mclose">Cancel</button><button class="btn pink" data-a="yes">${ok}</button></div>`);ASK=r})}
 function editModal(id){const e=S.ents.find(x=>x.id==id);if(!e)return;const gs=S.L.map(g=>g.name);if(!gs.includes(e.grp))gs.push(e.grp);
   modal(`<h2>Edit expense</h2><label>Category<select id="me-g">${gs.map(g=>`<option${g==e.grp?' selected':''}>${esc(g)}</option>`).join('')}</select></label>
-  <label>Item<input id="me-i" list="dl" value="${esc(e.item)}"></label><datalist id="dl"></datalist><label>Amount (Rs.)<input id="me-a" type="number" min="0" step="0.01" value="${e.amount}"></label>
+  <label>Item<input id="me-i" list="dl" value="${esc(e.item)}"${e.to?' disabled':''}></label><datalist id="dl"></datalist><label>Amount (Rs.)<input id="me-a" type="number" min="0" step="0.01" value="${e.amount}"></label>
   <label>Date<input id="me-d" type="date" value="${esc(e.date)}"></label><label>Note<input id="me-n" value="${esc(e.note||'')}"></label>
   <div class="row"><button class="btn alt" data-a="mclose">Cancel</button><button class="btn" data-a="esave" data-id="${id}">Save</button></div>`);fillDl()}
 function fillDl(){const g=$d('#me-g');if(!g)return;const grp=S.L.find(x=>x.name==g.value);$d('#dl').innerHTML=((grp&&grp.items)||[]).map(i=>`<option value="${esc(i)}">`).join('')}
 function listsModal(){modal(`<h2>Manage lists</h2><div style="color:var(--mute);font-size:13px">These feed the dropdowns when you add an expense – on desktop and on mobile.</div>`+
   S.L.map((g,gi)=>`<div class="grp"><div class="top"><span class="nm"><input type="color" class="cc" data-g="${gi}" value="${colorOf(g.name)}">${esc(g.name)}</span><button class="x" data-a="dg" data-g="${gi}">Delete</button></div>
-  <div class="chips">${g.items.map((it,ii)=>`<span class="chip">${esc(it)} <button class="x" data-a="di" data-g="${gi}" data-i="${ii}">✕</button></span>`).join('')||'<span class="empty">No items yet</span>'}</div>
-  <div class="add"><input placeholder="New item" data-in="${gi}"><button class="btn" data-a="ai" data-g="${gi}">Add</button></div></div>`).join('')+
+  ${isSav(g.name)?'<div class="empty">Items come from your bank accounts (🏦 Your savings).</div>':`<div class="chips">${g.items.map((it,ii)=>`<span class="chip">${esc(it)} <button class="x" data-a="di" data-g="${gi}" data-i="${ii}">✕</button></span>`).join('')||'<span class="empty">No items yet</span>'}</div>
+  <div class="add"><input placeholder="New item" data-in="${gi}"><button class="btn" data-a="ai" data-g="${gi}">Add</button></div>`}</div>`).join('')+
   `<div class="grp"><div class="top">New category</div><div class="add" style="margin-top:8px"><input type="color" class="cc" id="ngc" value="${CC.find(c=>!S.L.some(g=>g.color==c))||CC[S.L.length%CC.length]}"><input id="ng" placeholder="e.g. Insurance"><button class="btn" data-a="ag">Add</button></div></div><button class="btn alt full" data-a="mclose">Close</button>`)}
 async function goMonth(m,y=S.Y){S.SE=false;S.q='';S.cat='';S.M=m;if(y!=S.Y){S.Y=y;S.ld=true;render();await refresh(true)}else render()}
 
@@ -672,21 +678,24 @@ root.addEventListener('click',async ev=>{const b=ev.target.closest('[data-a]');i
   if(a=='lists')return listsModal();
   if(a=='sched')return openSched();
   if(a=='accs')return openAcc();
-  if(a=='accuse'){const k=S.Y+'_'+S.M;if(SELM[k]==D.id)delete SELM[k];else SELM[k]=D.id;await saveLists();return render()}
   if(a=='sedit'){S.SE=true;render();return $d('#sal')?.focus()}
   if(a=='scancel'){S.SE=false;return render()}
   if(a=='sal'){const v=parseFloat($d('#sal').value)||0,y=S.Y,m=S.M;S.SE=false;return write(async()=>{await setDoc(ref("months",y+"_"+m),{y,m,salary:v});try{await runSchedules()}catch(e){}},'Salary saved')}
-  if(a=='add'){const grp=$d('#eg').value;let item=$d('#ei').value;if(item=='__c')item=$d('#eic').value.trim();const amount=parseFloat($d('#ea').value),date=$d('#ed').value,note=$d('#en').value;
-    if(!grp)return toast('Add a category in Manage lists first');if(!item)return toast('Choose or type an item');if(!(amount>=0))return toast('Enter an amount');if(!date)return toast('Choose a date');
-    const sa0=S.sal[S.M]||0,acc=activeAcc(S.Y,S.M,sa0,sa0-sum(monthEnts(S.M)));
-    if(acc){const A=ACC.find(x=>x.id==acc);if(amount>A.balance)return toast('Not enough balance in '+A.name)}
-    if(await write(async()=>{await addDoc(col("entries"),{y:S.Y,m:S.M,grp,item,amount,date,note,ts:Date.now(),...(acc?{acc}:{})});if(acc)await accAdjust(acc,-amount)},'Expense added')){$d('#eg').value=grp;fillItems();$d('#ed').value=date;$d('#ea').focus()}return}
+  if(a=='add'){const grp=$d('#eg').value,wid=$d('#ew').value;let item=$d('#ei').value,to=null;const amount=parseFloat($d('#ea').value),date=$d('#ed').value,note=$d('#en').value;
+    if(!grp)return toast('Add a category in Manage lists first');
+    if(isSav(grp)){const T=ACC.find(x=>x.id==item);if(!T)return toast('Add a bank account in "Your savings" first');if(wid&&wid==T.id)return toast('Choose a different wallet');item=T.name;to=T.id}
+    else if(item=='__c')item=$d('#eic').value.trim();
+    if(!item)return toast('Choose or type an item');if(!(amount>=0))return toast('Enter an amount');if(!date)return toast('Choose a date');
+    const W=ACC.find(x=>x.id==wid);if(W&&amount>W.balance)return toast('Not enough balance in '+W.name);
+    if(await write(async()=>{await addDoc(col("entries"),{y:S.Y,m:S.M,grp,item,amount,date,note,ts:Date.now(),...(W?{acc:W.id}:{}),...(to?{to}:{})});await accApply([[W&&W.id,-amount],[to,amount]])},'Expense added')){$d('#eg').value=grp;fillItems();$d('#ew').value=wid;$d('#ed').value=date;$d('#ea').focus()}return}
   if(a=='edit')return editModal(D.id);
   if(a=='esave'){const amount=parseFloat($d('#me-a').value),item=$d('#me-i').value.trim(),date=$d('#me-d').value;if(!item||!(amount>=0)||!date)return toast('Fill item, amount and date');
-    const f={grp:$d('#me-g').value,item,amount,date,note:$d('#me-n').value,y:+date.slice(0,4),m:+date.slice(5,7)};const old=S.ents.find(x=>x.id==D.id),A=old&&ACC.find(x=>x.id==old.acc),diff=A?amount-old.amount:0;
-    if(A&&diff>A.balance)return toast('Not enough balance in '+A.name);
-    closeModal();return write(async()=>{await updateDoc(ref("entries",D.id),f);if(A)await accAdjust(A.id,-diff)},'Saved')}
-  if(a=='del'){if(await ask('Delete this expense?','Delete')){const old=S.ents.find(x=>x.id==D.id);await write(async()=>{await deleteDoc(ref("entries",D.id));if(old&&old.acc)await accAdjust(old.acc,old.amount)},'Deleted')}return}
+    const f={grp:$d('#me-g').value,item,amount,date,note:$d('#me-n').value,y:+date.slice(0,4),m:+date.slice(5,7)};
+    const old=S.ents.find(x=>x.id==D.id),A=old&&ACC.find(x=>x.id==old.acc),T=old&&ACC.find(x=>x.id==old.to),diff=old?amount-old.amount:0;
+    if(A&&diff>A.balance)return toast('Not enough balance in '+A.name);if(T&&T.balance+diff<0)return toast('Balance too low in '+T.name);
+    closeModal();return write(async()=>{await updateDoc(ref("entries",D.id),f);if(old)await accApply([[old.acc,-diff],[old.to,diff]])},'Saved')}
+  if(a=='del'){const old=S.ents.find(x=>x.id==D.id),T=old&&ACC.find(x=>x.id==old.to);if(T&&T.balance<old.amount)return toast('Balance too low in '+T.name+' to remove this deposit');
+    if(await ask('Delete this expense?','Delete'))await write(async()=>{await deleteDoc(ref("entries",D.id));if(old)await accApply([[old.acc,old.amount],[old.to,-old.amount]])},'Deleted');return}
   /* lists */
   if(a=='dg'){if(!confirm(`Delete category "${S.L[D.g].name}"? Past expenses stay.`))return;S.L.splice(D.g,1)}
   else if(a=='di')S.L[D.g].items.splice(D.i,1);
@@ -736,7 +745,8 @@ async function runSchedules(){
       if(date>=s.from&&date<=s.to&&!s.done.includes(key)){
         if(!(key in sal)){const d=await getDoc(ref("months",key));sal[key]=d.exists()?(+d.data().salary||0):0}
         if(sal[key]>0){
-          await setDoc(ref("entries","sch_"+s.id+"_"+key),{y,m,grp:s.grp,item:s.item,amount:s.amount,date,note:s.note||'Scheduled',ts:Date.now(),sid:s.id});
+          await setDoc(ref("entries","sch_"+s.id+"_"+key),{y,m,grp:s.grp,item:s.toAcc?(accName(s.toAcc)||s.item):s.item,amount:s.amount,date,note:s.note||'Scheduled',ts:Date.now(),sid:s.id,...(s.toAcc?{to:s.toAcc}:{})});
+          if(s.toAcc){const T=ACC.find(x=>x.id==s.toAcc);if(T)T.balance=Math.round((T.balance+s.amount)*100)/100}
           s.done.push(key);added++;changed=true}
       }
       m++;if(m>12){m=1;y++}
@@ -767,12 +777,12 @@ function renderSched(){
   <label>Note<input id="sf-n" placeholder="Optional" value="${e?esc(e.note||''):''}"></label>
   <div class="row">${e?'<button class="btn alt" data-sa="cancel">Cancel edit</button>':''}<button class="btn pink" data-sa="save">${e?'Update schedule':'Save schedule'}</button></div>
   <h3>Your scheduled expenses</h3><div>${SCH.map(s=>`<div class="sc" style="--c:${colorOf(s.grp)}"><div><b>${esc(s.item)}</b> · Rs. ${fmt(s.amount)}<small>${esc(s.grp)} · every month on the ${ordn(s.day)}</small><small>${dFull(s.from)} → ${dFull(s.to)} · ${s.done.length} added</small></div><button class="ib" data-sa="edit" data-id="${s.id}" aria-label="Edit">✎</button><button class="ib" data-sa="del" data-id="${s.id}" aria-label="Delete">✕</button></div>`).join('')||'<div class="empty">No scheduled expenses yet.</div>'}</div></div>`;
-  schItems(e?e.item:'');schHint();
+  schItems(e?(e.toAcc||e.item):'');schHint();
 }
 function schItems(sel){
-  const g=L.find(x=>x.name==sq('#sf-g').value),items=(g&&g.items)||[],i=sq('#sf-i');
-  i.innerHTML=items.map(x=>`<option>${esc(x)}</option>`).join('')+'<option value="__c">Type my own…</option>';
-  if(sel){if(items.includes(sel))i.value=sel;else{i.value='__c';sq('#sf-c2').value=sel}}
+  const gn=sq('#sf-g').value,g=L.find(x=>x.name==gn),items=(g&&g.items)||[],i=sq('#sf-i');
+  i.innerHTML=itemOpts(gn);
+  if(sel){if(isSav(gn)){if(ACC.some(a=>a.id==sel))i.value=sel}else if(items.includes(sel))i.value=sel;else{i.value='__c';sq('#sf-c2').value=sel}}
   sq('#sf-c').hidden=i.value!='__c';
 }
 function schHint(){
@@ -782,17 +792,19 @@ function schHint(){
 }
 async function saveSched(){
   const from=sq('#sf-f').value,to=sq('#sf-t').value,grp=sq('#sf-g').value,pay=sq('#sf-d').value,amount=parseFloat(sq('#sf-a').value);
-  let item=sq('#sf-i').value;if(item=='__c')item=sq('#sf-c2').value.trim();
+  let item=sq('#sf-i').value,toAcc=null;
+  if(isSav(grp)){const T=ACC.find(x=>x.id==item);if(!T)return toast('Add a bank account in "Your savings" first');toAcc=T.id;item=T.name}
+  else if(item=='__c')item=sq('#sf-c2').value.trim();
   if(!from||!to)return toast('Choose the date range');
   if(to<from)return toast('"To" date must be after "From"');
   if(!grp)return toast('Choose a category');
   if(!item)return toast('Choose or type an item');
   if(!(amount>=0)||sq('#sf-a').value==='')return toast('Enter an amount');
   if(!pay)return toast('Choose the pay date');
-  const f={from,to,day:+pay.slice(8,10),grp,item,amount,note:sq('#sf-n').value.trim()};
+  const f={from,to,day:+pay.slice(8,10),grp,item,amount,note:sq('#sf-n').value.trim()};if(toAcc)f.toAcc=toAcc;
   try{
     const e=SCH.find(x=>x.id==SCHEDIT);
-    if(e)Object.assign(e,f);else SCH.push({id:Date.now().toString(36)+Math.random().toString(36).slice(2,5),...f,done:[]});
+    if(e){Object.assign(e,f);if(!toAcc)delete e.toAcc}else SCH.push({id:Date.now().toString(36)+Math.random().toString(36).slice(2,5),...f,done:[]});
     await saveLists();SCHEDIT=null;
     const n=await runSchedules();
     toast(n?`Schedule saved · ${n} expense${n>1?'s':''} added`:'Schedule saved');
@@ -810,7 +822,7 @@ $('#sch').addEventListener('click',async ev=>{
   if(a=='aedit'){ACCEDIT=b.dataset.id;renderAcc();return $('#sch .sbox').scrollTo({top:0,behavior:'smooth'})}
   if(a=='adel'){
     if(!confirm('Delete this account? Past expenses stay.'))return;
-    try{const i=ACC.findIndex(x=>x.id==b.dataset.id);if(i>=0)ACC.splice(i,1);for(const k in SELM)if(SELM[k]==b.dataset.id)delete SELM[k];await saveLists();toast('Account deleted');renderAcc();refreshView()}
+    try{const i=ACC.findIndex(x=>x.id==b.dataset.id);if(i>=0)ACC.splice(i,1);await saveLists();toast('Account deleted');renderAcc();refreshView()}
     catch(err){toast(err.code||err.message||'Error')}
     return}
   if(a=='del'){
@@ -828,23 +840,26 @@ document.addEventListener('visibilitychange',async()=>{
   try{const n=await runSchedules();if(n){toast(n+' scheduled expense'+(n>1?'s':'')+' added');refreshView()}}catch(e){}});
 
 /* ---------- savings accounts ---------- */
+function isSav(n){return /^savings?$/i.test((n||'').trim())}
 function accName(id){return (ACC.find(a=>a.id==id)||{}).name||''}
-function isLocked(sal,left){return sal>0&&left>0}
-function activeAcc(y,m,sal,left){if(isLocked(sal,left))return null;const id=SELM[y+'_'+m];return ACC.some(a=>a.id==id)?id:null}
-async function accAdjust(id,delta){const a=ACC.find(x=>x.id==id);if(!a||!delta)return;a.balance=Math.round((a.balance+delta)*100)/100;await saveLists()}
-function accCardsHTML(y,m,sal,left){
+async function accApply(list){let ch=false;for(const [id,d] of list){const a=id&&ACC.find(x=>x.id==id);if(a&&d){a.balance=Math.round((a.balance+d)*100)/100;ch=true}}if(ch)await saveLists()}
+function walletOpts(){return '<option value="">💰 Salary</option>'+ACC.map(a=>`<option value="${a.id}">🏦 ${esc(a.name)} · Rs. ${fmt(a.balance)}</option>`).join('')}
+function itemOpts(gn){
+  if(isSav(gn))return ACC.length?ACC.map(a=>`<option value="${a.id}">${esc(a.name)}</option>`).join(''):'<option value="">No account yet – add one in Your savings</option>';
+  const g=L.find(x=>x.name==gn);
+  return ((g&&g.items)||[]).map(i=>`<option>${esc(i)}</option>`).join('')+'<option value="__c">Type my own…</option>';
+}
+function accCardsHTML(){
   if(!ACC.length)return '';
-  const lk=isLocked(sal,left),sel=activeAcc(y,m,sal,left);
-  return `<div class="accs">`+ACC.map(a=>`<div class="glass acard${lk?' lk':''}${sel==a.id?' sel':''}"><div class="ai">🏦</div><div class="at"><b>${esc(a.name)}</b><span>Rs. ${fmt(a.balance)}</span></div>${lk?'<span class="lock">🔒</span>':`<button class="abtn" data-a="accuse" data-id="${a.id}">${sel==a.id?'✔ Using':'Use'}</button>`}</div>`).join('')+
-  (lk?'<div class="ahint">🔒 Locked until this month\'s salary is finished (Rs. 0 left).</div>':sel?'<div class="ahint">New expenses are taken from the account marked ✔.</div>':'<div class="ahint">Salary finished – pick an account to take new expenses from your savings.</div>')+'</div>';
+  return `<div class="accs">`+ACC.map(a=>`<div class="glass acard"><div class="ai">🏦</div><div class="at"><b>${esc(a.name)}</b><span>Rs. ${fmt(a.balance)}</span></div></div>`).join('')+'</div>';
 }
 let ACCEDIT=null;
 function openAcc(id){ACCEDIT=id||null;$('#sch').classList.add('on');renderAcc()}
 function renderAcc(){
   const e=ACC.find(x=>x.id==ACCEDIT)||null;
   $('#sch').innerHTML=`<div class="scrim" data-sa="close"></div><div class="glass sbox">
-  <div class="sh"><h2>🏦 Savings accounts</h2><button class="ib" data-sa="close" aria-label="Close">✕</button></div>
-  <div style="color:var(--mute);font-size:13px">Add your savings accounts. They stay locked while the month's salary lasts, and unlock when it reaches Rs. 0.</div>
+  <div class="sh"><h2>🏦 Your savings</h2><button class="ib" data-sa="close" aria-label="Close">✕</button></div>
+  <div style="color:var(--mute);font-size:13px">Add your bank accounts. Pick one as the Wallet when adding an expense to pay from it, or add an expense in the Savings category to top it up.</div>
   <h3>${e?'Edit account':'Add account'}</h3>
   <label>Bank name<input id="ac-n" placeholder="e.g. Commercial Bank" value="${e?esc(e.name):''}"></label>
   <label>Balance (Rs.)<input id="ac-b" type="number" inputmode="decimal" min="0" step="0.01" placeholder="0.00" value="${e?e.balance:''}"></label>
